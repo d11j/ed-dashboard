@@ -61,8 +61,8 @@ const processedFiles = {};
 
 // --- ExpressサーバーとWebSocketサーバーのセットアップ ---
 const app = express();
-app.use(express.static(path.join(__dirname, 'assets')));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.use(express.static(path.join(__dirname, 'public')));
+
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 

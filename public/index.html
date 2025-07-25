@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ED Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=Roboto+Mono:wght@100;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+    <div id="status-indicator" class="status disconnected">Offline</div>
+    <div class="controls">
+        <button id="reset-button" class="reset-button">RESET STATS</button>
+    </div>
+    <div class="container">
+        <!-- Left Column -->
+        <div class="column">
+            <!--
+                Layout Note: The main header and timestamp are intentionally placed
+                inside the left column and centered to align with a two-panel
+                streaming layout.
+            -->
+            <div class="column-header">
+                <h1>ed.dashboard({realtime: true})</h1>
+                <div id="last-update-time" class="timestamp">Last entry: N/A</div>
+            </div>
+
+            <!-- Rank Progression Card -->
+            <div class="card">
+                <div class="toggle-section">
+                    <input type="checkbox" id="toggle-progress" class="toggle-checkbox" checked>
+                    <label for="toggle-progress" class="toggle-label h2">Rank Progression</label>
+                    <div class="toggle-content" id="progress-container">
+                        <!-- JavaScript will populate this area -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="column">
+            <!-- Combat Summary Card -->
+            <div class="card">
+                <div class="toggle-section">
+                    <input type="checkbox" id="toggle-bounty-summary" class="toggle-checkbox" checked>
+                    <label for="toggle-bounty-summary" class="toggle-label h2">Combat Summary</label>
+                    <div class="toggle-content">
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <div class="label">Total Kills</div>
+                                <div id="bounty-count" class="value">0</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="label">Total Rewards</div>
+                                <div id="bounty-rewards" class="value">0</div>
+                            </div>
+                        </div>
+                        <div class="toggle-section">
+                            <input type="checkbox" id="toggle-bounty-ranks" class="toggle-checkbox" checked>
+                            <label for="toggle-bounty-ranks" class="toggle-label h3">Kills by Rank</label>
+                            <div class="toggle-content">
+                                <table id="bounty-ranks-table"></table>
+                            </div>
+                        </div>
+                        <div class="toggle-section">
+                            <input type="checkbox" id="toggle-bounty-targets" class="toggle-checkbox" checked>
+                            <label for="toggle-bounty-targets" class="toggle-label h3">Kills by Target</label>
+                            <div class="toggle-content">
+                                <table id="bounty-targets-table"></table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Materials Collected Card -->
+            <div class="card">
+                <div class="toggle-section">
+                    <input type="checkbox" id="toggle-mat-summary" class="toggle-checkbox" checked>
+                    <label for="toggle-mat-summary" class="toggle-label h2">Materials Collected</label>
+                    <div class="toggle-content">
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="label">Total Collected</div>
+                            <div id="mat-total" class="value">0</div>
+                        </div>
+                    </div>
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-mat-categories" class="toggle-checkbox" checked>
+                        <label for="toggle-mat-categories" class="toggle-label h3">Collected by Category</label>
+                        <div class="toggle-content">
+                            <table id="mat-categories-table"></table>
+                        </div>
+                    </div>
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-mat-details" class="toggle-checkbox" checked>
+                        <label for="toggle-mat-details" class="toggle-label h3">Details</label>
+                        <div class="toggle-content">
+                            <table id="mat-details-table"></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/script.js" defer></script>
+</body>
+</html>
