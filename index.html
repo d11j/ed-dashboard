@@ -232,6 +232,27 @@
             font-weight: bold;
             text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
             white-space: nowrap;
+            z-index: 2; /* Ensure text is above other elements */
+        }
+        /* --- Styles for rank names inside the progress bar --- */
+        .rank-name-current, .rank-name-next {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 1; /* Below progress-text but above the bar */
+            color: var(--text-color);
+            opacity: 0.9;
+            font-size: 0.8em;
+            font-family: 'Orbitron', 'Consolas', monospace;
+            white-space: nowrap;
+            font-weight: 500;
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.8);
+        }
+        .rank-name-current {
+            left: 8px;
+        }
+        .rank-name-next {
+            right: 8px;
         }
     </style>
 </head>
@@ -642,8 +663,10 @@
                             <span class="rank-progress-percent"></span>
                         </div>
                         <div class="progress-bar-container">
+                            <div class="rank-name-current"></div>
                             <div class="progress-bar"></div>
                             <div class="progress-text"></div>
+                            <div class="rank-name-next"></div>
                         </div>
                     `;
                     container.appendChild(progressItem);
@@ -651,18 +674,23 @@
 
                 const progressBar = progressItem.querySelector('.progress-bar');
                 const progressText = progressItem.querySelector('.progress-text');
-                const progressPercent = progressItem.querySelector('.rank-progress-percent');
+                const currentRankEl = progressItem.querySelector('.rank-name-current');
+                const nextRankEl = progressItem.querySelector('.rank-name-next');
 
                 const newProgress = data.progress || 0;
                 progressBar.style.width = `${newProgress}%`;
-                progressPercent.textContent = `${Math.round(newProgress)}%`;
+                
+                // バーの中央に進捗率を表示し、上部のテキストはクリア
+                progressText.textContent = `${Math.round(newProgress)}%`;
+                progressItem.querySelector('.rank-progress-percent').textContent = '';
 
-                const newRankName = data.name || 'N/A';
-                progressText.textContent = newRankName;
+                // サーバーから直接送られてきた名前を使用
+                currentRankEl.textContent = data.name || '';
+                nextRankEl.textContent = data.nextName || ''; // 新しいプロパティ `nextName` を使用
 
                 if (oldData) {
                     if (newProgress !== oldData.progress) highlightElement(progressBar.parentElement);
-                    if (newRankName !== oldData.name) highlightElement(progressText);
+                    if (data.name !== oldData.name) highlightElement(currentRankEl);
                 }
             });
         }

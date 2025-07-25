@@ -43,14 +43,14 @@ const getInitialState = () => ({
         details: {}
     },
     progress: {
-        Combat: { rank: 0, name: COMBAT_RANKS[0], progress: 0 },
-        Trade: { rank: 0, name: TRADE_RANKS[0], progress: 0 },
-        Explore: { rank: 0, name: EXPLORE_RANKS[0], progress: 0 },
-        Federation: { rank: 0, name: FED_RANKS[0], progress: 0 },
-        Empire: { rank: 0, name: EMP_RANKS[0], progress: 0 },
-        CQC: { rank: 0, name: CQC_RANKS[0], progress: 0 },
-        Soldier: { rank: 0, name: SOLDIER_RANKS[0], progress: 0 },
-        Exobiologist: { rank: 0, name: EXOBIOLOGIST_RANKS[0], progress: 0 }
+        Combat: { rank: 0, name: COMBAT_RANKS[0], progress: 0, nextName: COMBAT_RANKS[1] },
+        Trade: { rank: 0, name: TRADE_RANKS[0], progress: 0, nextName: TRADE_RANKS[1] },
+        Explore: { rank: 0, name: EXPLORE_RANKS[0], progress: 0, nextName: EXPLORE_RANKS[1] },
+        Federation: { rank: 0, name: FED_RANKS[0], progress: 0, nextName: FED_RANKS[1] },
+        Empire: { rank: 0, name: EMP_RANKS[0], progress: 0, nextName: EMP_RANKS[1] },
+        CQC: { rank: 0, name: CQC_RANKS[0], progress: 0, nextName: CQC_RANKS[1] },
+        Soldier: { rank: 0, name: SOLDIER_RANKS[0], progress: 0, nextName: SOLDIER_RANKS[1] },
+        Exobiologist: { rank: 0, name: EXOBIOLOGIST_RANKS[0], progress: 0, nextName: EXOBIOLOGIST_RANKS[1] }
     }
 });
 
@@ -169,8 +169,10 @@ function processJournalLine(line) {
                 // `ranks`オブジェクトにそのランクタイプのキーが存在するかチェック
                 if (state.progress[rankType] && typeof ranks[rankType] !== 'undefined') {
                     const rankValue = ranks[rankType];
+                    const rankList = ALL_RANKS[rankType];
                     state.progress[rankType].rank = rankValue;
-                    state.progress[rankType].name = ALL_RANKS[rankType][rankValue] || 'Unknown';
+                    state.progress[rankType].name = rankList[rankValue] || 'Unknown';
+                    state.progress[rankType].nextName = rankList[rankValue + 1] || ''; // 次のランク名を設定
                 }
             });
         }
