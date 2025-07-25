@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ED Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=Roboto+Mono:wght@100;500&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1a1a1a;
+            --card-bg: #2c2c2c;
+            --text-color: #e0e0e0;
+            --header-color: #ff9900;
+            --border-color: #444;
+            --progress-bar-bg: #ff9900;
+        }
+        body {
+            font-family: 'Orbitron', 'Consolas', monospace;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 10px;
+        }
+        h1 {
+            font-size: 1.8em;
+            text-align: center;
+            color: var(--header-color);
+            margin-bottom: 20px;
+        }
+        .timestamp {
+            text-align: center;
+            color: var(--text-color);
+            opacity: 0.7;
+            margin-top: -15px;
+            margin-bottom: 20px;
+        }
+        .column-header {
+            /* This container groups the main page header elements, which are intentionally placed in the left column. */
+            /* Child elements are centered via their own styles (h1, .timestamp). */
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 20px;
+        }
+        .column {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            flex: 0 0 500px; /* 固定幅500px */
+        }
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
+        .summary-grid {
+            display: grid;
+            gap: 10px;
+            margin-bottom: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        }
+        .summary-item {
+            font-size: 1.3em;
+            background-color: #3a3a3a;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .summary-item .label {
+            font-size: 0.9em;
+            opacity: 0.8;
+        }
+        .summary-item .value {
+            font-size: 1.5em;
+            font-weight: bold;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        th {
+            opacity: 0.8;
+        }
+        td:last-child {
+            text-align: right;
+            font-weight: bold;
+        }
+        .status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 5px;
+            font-size: 0.8em;
+        }
+        .status.connected {
+            background-color: #28a745;
+            color: white;
+        }
+        .status.disconnected {
+            background-color: #dc3545;
+            color: white;
+        }
+        .toggle-section {
+            margin-bottom: 10px;
+        }
+        .toggle-checkbox {
+            display: none;
+        }
+        .toggle-label {
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+            padding-left: 25px;
+            font-weight: bold;
+            display: block;
+        }
+        .toggle-label.h2 {
+            font-size: 1.5em;
+            color: var(--header-color);
+            margin-top: 0;
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 10px;
+            margin-bottom: 10px;
+        }
+        .toggle-label.h3 {
+            font-size: 1.17em;
+            margin-top: 20px;
+        }
+        .toggle-label::before {
+            content: '▶';
+            position: absolute;
+            left: 0;
+            color: var(--header-color);
+            transition: transform 0.2s ease-out;
+        }
+        .toggle-checkbox:checked + .toggle-label::before {
+            transform: rotate(90deg);
+        }
+        .toggle-content {
+            display: none;
+            padding-left: 20px;
+        }
+        .toggle-checkbox:checked ~ .toggle-content {
+            display: block;
+        }
+        .controls {
+            text-align: left;
+            margin-bottom: 10px;
+        }
+        .reset-button {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Consolas', 'Monaco', monospace;
+            font-size: 1em;
+            font-weight: bold;
+        }
+        .reset-button:hover {
+            background-color: #c82333;
+        }
+        /* --- Highlight Animation --- */
+        @keyframes highlight-value-anim {
+            from { background-color: #ff9900; color: #1a1a1a; }
+            to { background-color: transparent; }
+        }
+        .highlight-value {
+            animation: highlight-value-anim 1.5s ease-out;
+        }
+        @keyframes highlight-row-anim {
+            from { background-color: rgba(40, 167, 69, 0.5); }
+            to { background-color: transparent; }
+        }
+        .highlight-row {
+            animation: highlight-row-anim 1.5s ease-out;
+        }
+        /* --- Progress Bar Styles --- */
+        .progress-item {
+            margin-bottom: 15px;
+        }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-family: 'Orbitron', 'Consolas', monospace;
+            font-size: 0.9em;
+        }
+        .progress-label .rank-type {
+            font-weight: bold;
+            color: var(--header-color);
+            opacity: 0.9;
+        }
+        .progress-label .rank-progress-percent {
+            opacity: 0.8;
+        }
+        .progress-bar-container {
+            width: 100%;
+            background-color: #1a1a1a;
+            border-radius: 4px;
+            border: 1px solid var(--border-color);
+            height: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: var(--progress-bar-bg);
+            width: 0%; /* JSで更新 */
+            transition: width 0.5s ease-in-out;
+            border-radius: 3px;
+        }
+        .progress-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 0.8em;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div id="status-indicator" class="status disconnected">Offline</div>
+    <div class="controls">
+        <button id="reset-button" class="reset-button">RESET STATS</button>
+    </div>
+    <div class="container">
+        <!-- Left Column -->
+        <div class="column">
+            <!--
+                Layout Note: The main header and timestamp are intentionally placed
+                inside the left column and centered to align with a two-panel
+                streaming layout.
+            -->
+            <div class="column-header">
+                <h1>ed.dashboard({realtime: true})</h1>
+                <div id="last-update-time" class="timestamp">Last entry: N/A</div>
+            </div>
+
+            <!-- Rank Progression Card -->
+            <div class="card">
+                <div class="toggle-section">
+                    <input type="checkbox" id="toggle-progress" class="toggle-checkbox" checked>
+                    <label for="toggle-progress" class="toggle-label h2">Rank Progression</label>
+                    <div class="toggle-content" id="progress-container">
+                        <!-- JavaScript will populate this area -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column -->
+        <div class="column">
+            <!-- Combat Summary Card -->
+            <div class="card">
+                <div class="toggle-section">
+                    <input type="checkbox" id="toggle-bounty-summary" class="toggle-checkbox" checked>
+                    <label for="toggle-bounty-summary" class="toggle-label h2">Combat Summary</label>
+                    <div class="toggle-content">
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <div class="label">Total Kills</div>
+                                <div id="bounty-count" class="value">0</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="label">Total Rewards</div>
+                                <div id="bounty-rewards" class="value">0</div>
+                            </div>
+                        </div>
+                        <div class="toggle-section">
+                            <input type="checkbox" id="toggle-bounty-ranks" class="toggle-checkbox" checked>
+                            <label for="toggle-bounty-ranks" class="toggle-label h3">Kills by Rank</label>
+                            <div class="toggle-content">
+                                <table id="bounty-ranks-table"></table>
+                            </div>
+                        </div>
+                        <div class="toggle-section">
+                            <input type="checkbox" id="toggle-bounty-targets" class="toggle-checkbox" checked>
+                            <label for="toggle-bounty-targets" class="toggle-label h3">Kills by Target</label>
+                            <div class="toggle-content">
+                                <table id="bounty-targets-table"></table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Materials Collected Card -->
+            <div class="card">
+                <div class="toggle-section">
+                    <input type="checkbox" id="toggle-mat-summary" class="toggle-checkbox" checked>
+                    <label for="toggle-mat-summary" class="toggle-label h2">Materials Collected</label>
+                    <div class="toggle-content">
+                    <div class="summary-grid">
+                        <div class="summary-item">
+                            <div class="label">Total Collected</div>
+                            <div id="mat-total" class="value">0</div>
+                        </div>
+                    </div>
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-mat-categories" class="toggle-checkbox" checked>
+                        <label for="toggle-mat-categories" class="toggle-label h3">Collected by Category</label>
+                        <div class="toggle-content">
+                            <table id="mat-categories-table"></table>
+                        </div>
+                    </div>
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-mat-details" class="toggle-checkbox" checked>
+                        <label for="toggle-mat-details" class="toggle-label h3">Details</label>
+                        <div class="toggle-content">
+                            <table id="mat-details-table"></table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const statusIndicator = document.getElementById('status-indicator');
+        const wsUrl = `ws://${window.location.host}`;
+        let socket;
+        // 以前のデータ状態を保存する変数
+        let previousState = null;
+
+        // リセットボタンの処理
+        document.getElementById('reset-button').addEventListener('click', () => {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: 'reset_stats' }));
+                console.log('リセット要求を送信しました。');
+            } else {
+                console.error('サーバーに接続されていません。');
+            }
+        });
+
+        function connect() {
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                console.log('WebSocket connection successful');
+                statusIndicator.textContent = 'Online';
+                statusIndicator.className = 'status connected';
+            };
+
+            socket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.type === 'full_update') {
+                    // 最初のデータ受信時は、previousStateを初期化するだけ
+                    if (!previousState) {
+                        previousState = JSON.parse(JSON.stringify(data.payload));
+                    }
+                    updateUI(data.payload);
+                    // 現在の状態を次の比較のために保存（ディープコピー）
+                    previousState = JSON.parse(JSON.stringify(data.payload));
+                }
+            };
+
+            socket.onclose = () => {
+                console.log('WebSocket disconnected. Reconnecting in 5 seconds...');
+                statusIndicator.textContent = 'Disconnected';
+                statusIndicator.className = 'status disconnected';
+                setTimeout(connect, 5000);
+            };
+
+            socket.onerror = (error) => {
+                console.error('WebSocket Error:', error);
+                socket.close();
+            };
+        }
+
+        /**
+         * DOM要素を一時的にハイライトする
+         * @param {HTMLElement} element - ハイライトするDOM要素
+         * @param {string} [className='highlight-value'] - 適用するCSSクラス名
+         */
+        function highlightElement(element, className = 'highlight-value') {
+            element.classList.add(className);
+            setTimeout(() => {
+                element.classList.remove(className);
+            }, 1500); // 1.5秒後にハイライトを解除
+        }
+
+        function updateUI(state) {
+            // --- Update Last Update Time ---
+            const lastUpdateEl = document.getElementById('last-update-time');
+            if (state.lastUpdateTimestamp && state.lastUpdateTimestamp !== (previousState && previousState.lastUpdateTimestamp)) {
+                const date = new Date(state.lastUpdateTimestamp);
+                const timeString = date.toLocaleTimeString('en-GB'); // HH:MM:SS format
+                lastUpdateEl.textContent = `Last entry: ${timeString}`;
+                // highlightElement(lastUpdateEl);
+            } else {
+                lastUpdateEl.textContent = 'Last entry: N/A';
+            }
+
+            // --- Update Combat Summary ---
+            const bountyCountEl = document.getElementById('bounty-count');
+            if (previousState && state.bounty.count !== previousState.bounty.count) {
+                highlightElement(bountyCountEl.parentElement);
+            }
+            bountyCountEl.textContent = state.bounty.count;
+
+            const bountyRewardsEl = document.getElementById('bounty-rewards');
+            if (previousState && state.bounty.totalRewards !== previousState.bounty.totalRewards) {
+                highlightElement(bountyRewardsEl.parentElement);
+            }
+            bountyRewardsEl.textContent = state.bounty.totalRewards.toLocaleString();
+            
+            updateKillsTable('bounty-ranks-table', state.bounty.ranks, previousState.bounty.ranks);
+            updateGenericTable('bounty-targets-table', state.bounty.targets, previousState.bounty.targets, ['Target', 'Kills']);
+
+            // --- Update Materials Summary ---
+            const matTotalEl = document.getElementById('mat-total');
+            if (previousState && state.materials.total !== previousState.materials.total) {
+                highlightElement(matTotalEl.parentElement);
+            }
+            matTotalEl.textContent = state.materials.total;
+            updateGenericTable('mat-categories-table', state.materials.categories, previousState.materials.categories, ['Category', 'Count']);
+            updateMaterialsDetailTable('mat-details-table', state.materials.details, previousState.materials.details);
+
+            // --- Update Rank Progression ---
+            updateProgressBars('progress-container', state.progress, previousState ? previousState.progress : null);
+        }
+
+        function updateGenericTable(tableId, newData, oldData, headers) {
+            const table = document.getElementById(tableId);
+            if (!table.tHead) {
+                const thead = table.createTHead();
+                const headerRow = thead.insertRow();
+                headers.forEach(headerText => {
+                    const th = document.createElement('th');
+                    th.textContent = headerText;
+                    headerRow.appendChild(th);
+                });
+                headerRow.cells[headers.length - 1].style.textAlign = 'right';
+            }
+
+            const tbody = table.tBodies[0] || table.createTBody();
+            const sortedData = Object.entries(newData).sort(([, a], [, b]) => b - a);
+            const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
+
+            sortedData.forEach(([key, value]) => {
+                const row = existingRows.get(key);
+                if (row) { // 既存の行を更新
+                    const valueCell = row.cells[1];
+                    if (value !== (oldData[key] || 0)) {
+                        valueCell.textContent = value.toLocaleString();
+                        highlightElement(valueCell);
+                    }
+                    existingRows.delete(key);
+                } else { // 新しい行を追加
+                    const newRow = tbody.insertRow();
+                    newRow.dataset.key = key;
+                    newRow.insertCell(0).textContent = key;
+                    newRow.insertCell(1).textContent = value.toLocaleString();
+                    highlightElement(newRow, 'highlight-row');
+                }
+            });
+        }
+
+        function updateKillsTable(tableId, newData, oldData) {
+            const table = document.getElementById(tableId);
+            if (!table.tHead) {
+                const thead = table.createTHead();
+                const headerRow = thead.insertRow();
+                ['', 'Rank', 'Kills'].forEach(text => {
+                    const th = document.createElement('th');
+                    th.textContent = text;
+                    headerRow.appendChild(th);
+                });
+                headerRow.cells[2].style.textAlign = 'right';
+            }
+
+            const tbody = table.tBodies[0] || table.createTBody();
+            const sortedData = Object.entries(newData).sort(([, a], [, b]) => b - a);
+            const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
+
+            sortedData.forEach(([key, value]) => {
+                const row = existingRows.get(key);
+                if (row) {
+                    const valueCell = row.cells[2];
+                    if (value !== (oldData[key] || 0)) {
+                        valueCell.textContent = value.toLocaleString();
+                        highlightElement(valueCell);
+                    }
+                    existingRows.delete(key);
+                } else {
+                    const newRow = tbody.insertRow();
+                    newRow.dataset.key = key;
+                    newRow.insertCell(0).appendChild(getRankIcon(key));
+                    newRow.insertCell(1).textContent = key;
+                    newRow.insertCell(2).textContent = value.toLocaleString();
+                    highlightElement(newRow, 'highlight-row');
+                }
+            });
+        }
+
+        function updateMaterialsDetailTable(tableId, newData, oldData) {
+            const table = document.getElementById(tableId);
+            if (!table.tHead) {
+                const thead = table.createTHead();
+                const headerRow = thead.insertRow();
+                ['Category', 'Material', 'Count'].forEach(text => {
+                    const th = document.createElement('th');
+                    th.textContent = text;
+                    headerRow.appendChild(th);
+                });
+                headerRow.cells[2].style.textAlign = 'right';
+            }
+
+            const tbody = table.tBodies[0] || table.createTBody();
+            const flatNewData = Object.entries(newData).flatMap(([category, names]) =>
+                Object.entries(names).map(([name, count]) => ({ category, name, count }))
+            );
+            flatNewData.sort((a, b) => a.category.localeCompare(b.category) || b.count - a.count);
+
+            const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
+
+            flatNewData.forEach(item => {
+                const key = `${item.category}::${item.name}`;
+                const row = existingRows.get(key);
+                const oldValue = (oldData[item.category] && oldData[item.category][item.name]) || 0;
+
+                if (row) {
+                    const valueCell = row.cells[2];
+                    if (item.count !== oldValue) {
+                        valueCell.textContent = item.count;
+                        highlightElement(valueCell);
+                    }
+                    existingRows.delete(key);
+                } else {
+                    const newRow = tbody.insertRow();
+                    newRow.dataset.key = key;
+                    newRow.insertCell(0).textContent = item.category;
+                    newRow.insertCell(1).textContent = item.name;
+                    const countCell = newRow.insertCell(2);
+                    countCell.textContent = item.count;
+                    countCell.style.fontWeight = 'bold';
+                    highlightElement(newRow, 'highlight-row');
+                }
+            });
+        }
+
+        /**
+         * パイロットの戦闘ランク名に応じたSVGアイコン要素を生成して返す。(リファクタリング版)
+         * @param {string} rankName - 'Harmless', 'Novice', 'Elite' などの戦闘ランク名。
+         * @returns {SVGSVGElement} - 対応するSVGアイコンのDOM要素。
+         */
+        function getRankIcon(rankName) {
+            const rankMap = {
+                'Harmless': 0, 'Mostly Harmless': 1, 'Novice': 2, 'Competent': 3,
+                'Expert': 4, 'Master': 5, 'Dangerous': 6, 'Deadly': 7, 'Elite': 8,
+            };
+            const rankLevel = rankMap[rankName] || 0;
+            const isElite = rankLevel === 8;
+
+            // --- SVGパーツ定義を定数にまとめておく ---
+            const PART_ID = 'octagon-part';
+            const PART_POINTS = '30,5 70,5 62,23 38,23';
+            const OUTLINE_POINTS = '30,5 70,5 95,30 95,70 70,95 30,95 5,70 5,30';
+            // Eliteランク専用の中央紋章
+            const ELITE_EMBLEM = '<polygon class="fill" points="50,50 25,30 50,75 75,30"/>';
+
+            // --- ランクに応じてスタイルと追加パーツを動的に決定 ---
+            const style = `
+                <style>
+                    .outline { 
+                        fill: none; 
+                        stroke: ${isElite ? '#fff' : '#ff9900'}; 
+                        stroke-width: ${isElite ? 4 : 3}; 
+                        opacity: ${isElite ? 1 : 0.6}; 
+                    }
+                    .fill { fill: #ff9900; }
+                    .elite-emblem { fill: none; stroke: #fff; stroke-width: 4; stroke-linecap: round; }
+                </style>
+            `;
+            const extraParts = isElite ? ELITE_EMBLEM : '';
+
+            // --- use要素を生成 ---
+            // Array.from()で書くと少し短くなる
+            const rotationParts = Array.from({ length: rankLevel }, (_, i) => 
+                `<use href="#${PART_ID}" transform="rotate(${i * 45}, 50, 50)" />`
+            ).join('');
+
+            // --- SVG全体を組み立て ---
+            const svgString = `
+                <svg width="24" height="24" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <polygon id="${PART_ID}" class="fill" points="${PART_POINTS}" />
+                    </defs>
+                    ${style}
+                    <polygon class="outline" points="${OUTLINE_POINTS}" />
+                    ${rotationParts}
+                    ${extraParts}
+                </svg>
+            `;
+
+            // DOM要素に変換するこのやり方はよくある手口。問題ない。
+            const div = document.createElement('div');
+            div.innerHTML = svgString.trim();
+            return div.firstChild;
+        }
+
+        function updateProgressBars(containerId, newProgressData, oldProgressData) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            // 表示順を定義 (Super Powerは先に表示)
+            const rankOrder = ['Federation', 'Empire', 'Combat', 'Trade', 'Explore', 'Soldier', 'Exobiologist', 'CQC'];
+
+            rankOrder.forEach(rankType => {
+                const data = newProgressData[rankType];
+                if (!data) return;
+
+                const oldData = oldProgressData ? oldProgressData[rankType] : null;
+                const elementId = `progress-item-${rankType}`;
+                let progressItem = document.getElementById(elementId);
+
+                // 要素がまだ存在しない場合は作成
+                if (!progressItem) {
+                    progressItem = document.createElement('div');
+                    progressItem.id = elementId;
+                    progressItem.className = 'progress-item';
+                    progressItem.innerHTML = `
+                        <div class="progress-label">
+                            <span class="rank-type">${rankType}</span>
+                            <span class="rank-progress-percent"></span>
+                        </div>
+                        <div class="progress-bar-container">
+                            <div class="progress-bar"></div>
+                            <div class="progress-text"></div>
+                        </div>
+                    `;
+                    container.appendChild(progressItem);
+                }
+
+                const progressBar = progressItem.querySelector('.progress-bar');
+                const progressText = progressItem.querySelector('.progress-text');
+                const progressPercent = progressItem.querySelector('.rank-progress-percent');
+
+                const newProgress = data.progress || 0;
+                progressBar.style.width = `${newProgress}%`;
+                progressPercent.textContent = `${Math.round(newProgress)}%`;
+
+                const newRankName = data.name || 'N/A';
+                progressText.textContent = newRankName;
+
+                if (oldData) {
+                    if (newProgress !== oldData.progress) highlightElement(progressBar.parentElement);
+                    if (newRankName !== oldData.name) highlightElement(progressText);
+                }
+            });
+        }
+
+        connect();
+    </script>
+</body>
+</html>
