@@ -68,7 +68,7 @@ const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
     console.log('クライアントが接続しました。');
-    ws.send(JSON.stringify({ type: 'full_update', payload: state })); // 接続時に現在の状態を送信
+    ws.send(JSON.stringify({ type: 'full_update', payload: makePayload() })); // 接続時に現在の状態を送信
     ws.on('message', (message) => {
         try {
             const data = JSON.parse(message);
@@ -83,8 +83,8 @@ wss.on('connection', (ws) => {
     });
 });
 
-function broadcastUpdate() {
-    // クライアントに送信する用の状態オブジェクトをディープコピー
+function makePayload() {
+        // クライアントに送信する用の状態オブジェクトをディープコピー
     const stateForBroadcast = JSON.parse(JSON.stringify(state));
 
     // bounty.targetsを処理し、TOP5と「その他」に集約する
@@ -101,7 +101,7 @@ function broadcastUpdate() {
         // 6位以下を「その他」として合計
         const othersTotal = sortedTargets.slice(5).reduce((sum, [, count]) => sum + count, 0);
         if (othersTotal > 0) {
-            newTargets['その他'] = othersTotal;
+            newTargets['OTHERS'] = othersTotal;
         }
         // ブロードキャスト用のstateを更新
         stateForBroadcast.bounty.targets = newTargets;
@@ -123,7 +123,7 @@ function broadcastUpdate() {
             }
             const othersTotal = sortedMaterials.slice(5).reduce((sum, [, count]) => sum + count, 0);
             if (othersTotal > 0) {
-                newCategoryDetails['その他'] = othersTotal;
+                newCategoryDetails['OTHERS'] = othersTotal;
             }
             newMaterialDetails[category] = newCategoryDetails;
         } else {
@@ -132,7 +132,12 @@ function broadcastUpdate() {
     }
     stateForBroadcast.materials.details = newMaterialDetails;
 
-    const payload = JSON.stringify({ type: 'full_update', payload: stateForBroadcast });
+    return stateForBroadcast;
+}
+
+function broadcastUpdate() {
+
+    const payload = JSON.stringify({ type: 'full_update', payload: makePayload() });
     wss.clients.forEach((client) => {
         if (client.readyState === client.OPEN) {
             client.send(payload);

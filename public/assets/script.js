@@ -116,7 +116,13 @@ function updateGenericTable(tableId, newData, oldData, headers) {
     }
 
     const tbody = table.tBodies[0] || table.createTBody();
-    const sortedData = Object.entries(newData).sort(([, a], [, b]) => b - a);
+    const sortedData = Object.entries(newData).sort(([keyA, valueA], [keyB, valueB]) => {
+        // 'OTHERS' ラベルを常にテーブルの末尾に表示する
+        if (keyA === 'OTHERS') return 1;
+        if (keyB === 'OTHERS') return -1;
+        // 通常は値で降順ソート
+        return valueB - valueA;
+    });
     const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
 
     sortedData.forEach(([key, value]) => {
@@ -152,7 +158,13 @@ function updateKillsTable(tableId, newData, oldData) {
     }
 
     const tbody = table.tBodies[0] || table.createTBody();
-    const sortedData = Object.entries(newData).sort(([, a], [, b]) => b - a);
+    const sortedData = Object.entries(newData).sort(([keyA, valueA], [keyB, valueB]) => {
+        // 'OTHERS' ラベルを常にテーブルの末尾に表示する
+        if (keyA === 'OTHERS') return 1;
+        if (keyB === 'OTHERS') return -1;
+        // 通常は値で降順ソート
+        return valueB - valueA;
+    });
     const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
 
     sortedData.forEach(([key, value]) => {
