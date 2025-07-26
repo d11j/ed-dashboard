@@ -75,8 +75,6 @@ wss.on('connection', (ws) => {
             if (data.type === 'reset_stats') {
                 console.log('リセット要求を受信しました。統計情報を初期化します。');
                 state = getInitialState(); // 状態を初期化
-                // processedFiles も初期化する必要があるかもしれないが、
-                //「今日の戦果」コンセプトなら不要だろう。
                 broadcastUpdate(); // 全クライアントに更新を通知
             }
         } catch (e) {
@@ -162,7 +160,7 @@ function processJournalLine(line) {
                 }
             });
         }
-        else if (entry.event === 'Rank') {
+        else if (entry.event === 'Rank' || entry.event === 'Promotion') {
             // Rankイベント: ランクのレベルと名前を更新
             const ranks = entry; // イベントオブジェクト自体にランク情報が含まれる
             Object.keys(ALL_RANKS).forEach(rankType => {
@@ -173,6 +171,11 @@ function processJournalLine(line) {
                     state.progress[rankType].rank = rankValue;
                     state.progress[rankType].name = rankList[rankValue] || 'Unknown';
                     state.progress[rankType].nextName = rankList[rankValue + 1] || ''; // 次のランク名を設定
+                    // Promotionイベントの場合は、進行度を0にリセットする
+                    if (entry.event === 'Promotion') {
+                        state.progress[rankType].progress = 0;
+                        console.log(`PROMOTION! ${rankType} is now ${state.progress[rankType].name}.`);
+                    }
                 }
             });
         }
