@@ -68,7 +68,6 @@ function updateUI(state) {
         const date = new Date(state.lastUpdateTimestamp);
         const timeString = date.toLocaleTimeString('en-GB'); // HH:MM:SS format
         lastUpdateEl.textContent = `Last entry: ${timeString}`;
-        // highlightElement(lastUpdateEl);
     } else {
         lastUpdateEl.textContent = 'Last entry: N/A';
     }
@@ -98,9 +97,38 @@ function updateUI(state) {
     updateGenericTable('mat-categories-table', state.materials.categories, previousState.materials.categories, ['Category', 'Count']);
     updateMaterialsDetailTable('mat-details-table', state.materials.details, previousState.materials.details);
 
+    // --- Update Mission Summary ---
+    updateMissionSummary(state.missions, previousState ? previousState.missions : null);
+
     // --- Update Rank Progression ---
     updateProgressBars('progress-container', state.progress, previousState ? previousState.progress : null);
 }
+
+
+/**
+ * ミッション完了数のサマリーUIを更新する
+ * @param {object} newMissions - 新しいミッションの状態オブジェクト
+ * @param {object} oldMissions - 以前のミッションの状態オブジェクト
+ */
+function updateMissionSummary(newMissions, oldMissions) {
+    if (!newMissions) return;
+
+    const updateElement = (id, newValue, oldValue) => {
+        const element = document.getElementById(id);
+        if (element) {
+            if (oldMissions && newValue !== oldValue) {
+                highlightElement(element.parentElement);
+            }
+            element.textContent = newValue.toLocaleString();
+        }
+    };
+
+    updateElement('missions-fed', newMissions.federation, oldMissions ? oldMissions.federation : 0);
+    updateElement('missions-emp', newMissions.empire, oldMissions ? oldMissions.empire : 0);
+    updateElement('missions-ind', newMissions.independent, oldMissions ? oldMissions.independent : 0);
+    updateElement('missions-total', newMissions.completed, oldMissions ? oldMissions.completed : 0);
+}
+
 
 function updateGenericTable(tableId, newData, oldData, headers) {
     const table = document.getElementById(tableId);
@@ -361,7 +389,7 @@ function updateProgressBars(containerId, newProgressData, oldProgressData) {
 
         // サーバーから直接送られてきた名前を使用
         currentRankEl.textContent = data.name || '';
-        nextRankEl.textContent = data.nextName || ''; // 新しいプロパティ `nextName` を使用
+        nextRankEl.textContent = data.nextName || '';
 
         if (oldData) {
             if (newProgress !== oldData.progress) highlightElement(progressBar.parentElement);

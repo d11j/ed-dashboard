@@ -42,6 +42,12 @@ const getInitialState = () => ({
         categories: {},
         details: {}
     },
+    missions: {
+        completed: 0,
+        federation: 0,
+        empire: 0,
+        independent: 0 // 連邦・帝国に属さない独立系派閥用
+    },
     progress: {
         Combat: { rank: 0, name: COMBAT_RANKS[0], progress: 0, nextName: COMBAT_RANKS[1] },
         Trade: { rank: 0, name: TRADE_RANKS[0], progress: 0, nextName: TRADE_RANKS[1] },
@@ -58,6 +64,7 @@ let state = getInitialState(); // 初期化
 // 敵パイロットのランク情報を保持
 const pilotRanks = {};
 const processedFiles = {};
+const activeMissions = {};
 
 // --- ExpressサーバーとWebSocketサーバーのセットアップ ---
 const app = express();
@@ -84,7 +91,7 @@ wss.on('connection', (ws) => {
 });
 
 function makePayload() {
-        // クライアントに送信する用の状態オブジェクトをディープコピー
+    // クライアントに送信する用の状態オブジェクトをディープコピー
     const stateForBroadcast = JSON.parse(JSON.stringify(state));
 
     // bounty.targetsを処理し、TOP5と「その他」に集約する
@@ -213,7 +220,7 @@ function processJournalLine(line) {
             });
         }
         else if (entry.event === 'Rank' || entry.event === 'Promotion') {
-            // Rankイベント: ランクのレベルと名前を更新
+        // Rankイベント: ランクのレベルと名前を更新
             const ranks = entry; // イベントオブジェクト自体にランク情報が含まれる
             Object.keys(ALL_RANKS).forEach(rankType => {
                 // `ranks`オブジェクトにそのランクタイプのキーが存在するかチェック
@@ -230,6 +237,53 @@ function processJournalLine(line) {
                     }
                 }
             });
+        }
+        // --- 派閥情報を更新するイベント ---
+        if (entry.event === 'FSDJump' || entry.event === 'Location') {
+            factionAllegianceMap = {}; // マップをクリア
+            if (entry.Factions && Array.isArray(entry.Factions)) {
+                entry.Factions.forEach(faction => {
+                    if (faction.Name && faction.Allegiance) {
+                        factionAllegianceMap[faction.Name] = faction.Allegiance;
+                    }
+                });
+                console.log(`現在の星系の派閥情報を更新しました。`);
+            }
+        }
+
+        // --- ミッション関連イベント処理群 ---
+        else if (entry.event === 'MissionAccepted') {
+            const factionName = entry.Faction;
+            // 現在の星系の派閥マップから所属を取得
+            const allegiance = factionAllegianceMap[factionName];
+
+            if (entry.MissionID && allegiance) {
+                if (allegiance === 'Federation' || allegiance === 'Empire') {
+                    activeMissions[entry.MissionID] = allegiance;
+                }
+            }
+        }
+        else if (entry.event === 'MissionCompleted') {
+            const missionID = entry.MissionID;
+            const allegiance = activeMissions[missionID];
+
+            state.missions.completed++;
+
+            if (allegiance) {
+                if (allegiance === 'Federation') {
+                    state.missions.federation++;
+                } else if (allegiance === 'Empire') {
+                    state.missions.empire++;
+                }
+                delete activeMissions[missionID];
+            } else {
+                state.missions.independent++;
+            }
+        }
+        else if (entry.event === 'MissionFailed' || entry.event === 'MissionAbandoned') {
+            if (activeMissions[entry.MissionID]) {
+                delete activeMissions[entry.MissionID];
+            }
         }
 
     } catch (e) {
