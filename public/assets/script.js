@@ -133,6 +133,7 @@ function updateGenericTable(tableId, newData, oldData, headers) {
                 valueCell.textContent = value.toLocaleString();
                 highlightElement(valueCell);
             }
+            tbody.appendChild(row); // 行を末尾に移動してソート順を維持
             existingRows.delete(key);
         } else { // 新しい行を追加
             const newRow = tbody.insertRow();
@@ -142,6 +143,9 @@ function updateGenericTable(tableId, newData, oldData, headers) {
             highlightElement(newRow, 'highlight-row');
         }
     });
+
+    // 不要になった行（newDataに存在しない行）をテーブルから削除
+    existingRows.forEach(row => row.remove());
 }
 
 function updateKillsTable(tableId, newData, oldData) {
@@ -175,6 +179,7 @@ function updateKillsTable(tableId, newData, oldData) {
                 valueCell.textContent = value.toLocaleString();
                 highlightElement(valueCell);
             }
+            tbody.appendChild(row); // 行を末尾に移動してソート順を維持
             existingRows.delete(key);
         } else {
             const newRow = tbody.insertRow();
@@ -185,6 +190,9 @@ function updateKillsTable(tableId, newData, oldData) {
             highlightElement(newRow, 'highlight-row');
         }
     });
+
+    // 不要になった行（newDataに存在しない行）をテーブルから削除
+    existingRows.forEach(row => row.remove());
 }
 
 function updateMaterialsDetailTable(tableId, newData, oldData) {
@@ -204,7 +212,14 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
     const flatNewData = Object.entries(newData).flatMap(([category, names]) =>
         Object.entries(names).map(([name, count]) => ({ category, name, count }))
     );
-    flatNewData.sort((a, b) => a.category.localeCompare(b.category) || b.count - a.count);
+    // カテゴリでソートし、各カテゴリ内では'OTHERS'を末尾にしつつ、他は個数で降順ソート
+    flatNewData.sort((a, b) => {
+        const catCompare = a.category.localeCompare(b.category);
+        if (catCompare !== 0) return catCompare;
+        if (a.name === 'OTHERS') return 1;
+        if (b.name === 'OTHERS') return -1;
+        return b.count - a.count;
+    });
 
     const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
 
@@ -219,6 +234,7 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
                 valueCell.textContent = item.count;
                 highlightElement(valueCell);
             }
+            tbody.appendChild(row); // 行を末尾に移動してソート順を維持
             existingRows.delete(key);
         } else {
             const newRow = tbody.insertRow();
@@ -231,6 +247,9 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
             highlightElement(newRow, 'highlight-row');
         }
     });
+
+    // 不要になった行（newDataに存在しない行）をテーブルから削除
+    existingRows.forEach(row => row.remove());
 }
 
 /**
