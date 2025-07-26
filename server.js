@@ -84,8 +84,55 @@ wss.on('connection', (ws) => {
 });
 
 function broadcastUpdate() {
-    // TODO: bounty.targetsはTOP5のみをブロードキャストし、それ以下はその他の合計とする
-    const payload = JSON.stringify({ type: 'full_update', payload: state });
+    // クライアントに送信する用の状態オブジェクトをディープコピー
+    const stateForBroadcast = JSON.parse(JSON.stringify(state));
+
+    // bounty.targetsを処理し、TOP5と「その他」に集約する
+    const originalTargets = state.bounty.targets;
+    const sortedTargets = Object.entries(originalTargets).sort(([, a], [, b]) => b - a);
+
+    if (sortedTargets.length > 5) {
+        const newTargets = {};
+        // TOP5を新しいオブジェクトにコピー
+        const top5 = sortedTargets.slice(0, 5);
+        for (const [name, count] of top5) {
+            newTargets[name] = count;
+        }
+        // 6位以下を「その他」として合計
+        const othersTotal = sortedTargets.slice(5).reduce((sum, [, count]) => sum + count, 0);
+        if (othersTotal > 0) {
+            newTargets['その他'] = othersTotal;
+        }
+        // ブロードキャスト用のstateを更新
+        stateForBroadcast.bounty.targets = newTargets;
+    }
+
+    // materials.detailsをカテゴリごとに処理し、TOP5と「その他」に集約する
+    const originalMaterialDetails = state.materials.details;
+    // カテゴリごとに集約した結果を格納する新しいオブジェクト
+    const newMaterialDetails = {};
+    for (const category in originalMaterialDetails) {
+        const materialsInCategory = originalMaterialDetails[category];
+        const sortedMaterials = Object.entries(materialsInCategory).sort(([, a], [, b]) => b - a);
+
+        if (sortedMaterials.length > 5) {
+            const newCategoryDetails = {};
+            const top5 = sortedMaterials.slice(0, 5);
+            for (const [name, count] of top5) {
+                newCategoryDetails[name] = count;
+            }
+            const othersTotal = sortedMaterials.slice(5).reduce((sum, [, count]) => sum + count, 0);
+            if (othersTotal > 0) {
+                newCategoryDetails['その他'] = othersTotal;
+            }
+            newMaterialDetails[category] = newCategoryDetails;
+        } else {
+            newMaterialDetails[category] = materialsInCategory;
+        }
+    }
+    stateForBroadcast.materials.details = newMaterialDetails;
+
+    const payload = JSON.stringify({ type: 'full_update', payload: stateForBroadcast });
     wss.clients.forEach((client) => {
         if (client.readyState === client.OPEN) {
             client.send(payload);
