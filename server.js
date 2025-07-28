@@ -6,11 +6,13 @@ const express = require('express');
 const chokidar = require('chokidar');
 const { WebSocketServer } = require('ws');
 const os = require('os');
+const { OBSWebSocket, EventSubscription } = require('obs-websocket-js'); // OBS WebSocketライブラリ
 
 // --- 設定 ---
 const PORT = 3000;
 // Elite:Dangerousのジャーナルディレクトリを指定
 const JOURNAL_DIR = path.join(os.homedir(), 'Saved Games', 'Frontier Developments', 'Elite Dangerous');
+const MAX_OBS_RETRIES = 5; // OBSへの最大再接続試行回数
 
 // --- ランク定義 ---
 const FED_RANKS = ['None', 'Recruit', 'Cadet', 'Midshipman', 'Petty Officer', 'Chief Petty Officer', 'Warrant Officer', 'Ensign', 'Lieutenant', 'Lieutenant Commander', 'Post Commander', 'Post Captain', 'Rear Admiral', 'Vice Admiral', 'Admiral'];
@@ -42,11 +44,11 @@ const getInitialState = () => ({
         categories: {},
         details: {}
     },
-    missions: {
+    missions: { // ミッション完了数
         completed: 0,
         federation: 0,
         empire: 0,
-        independent: 0 // 連邦・帝国に属さない独立系派閥用
+        independent: 0
     },
     progress: {
         Combat: { rank: 0, name: COMBAT_RANKS[0], progress: 0, nextName: COMBAT_RANKS[1] },
@@ -61,28 +63,37 @@ const getInitialState = () => ({
 });
 
 let state = getInitialState(); // 初期化
-// 敵パイロットのランク情報を保持
-const pilotRanks = {};
+const pilotRanks = {}; // 敵パイロットのランク情報を保持
 const processedFiles = {};
-const activeMissions = {};
+const activeMissions = {}; // 進行中のミッション情報を保持
+let factionAllegianceMap = {}; // 現在の星系の派閥と所属のマップ
+
+// OBS連携用のグローバル変数
+let recordingStartTime = null; // 録画開始時刻
+let eventLog = [];             // イベントログの配列
 
 // --- ExpressサーバーとWebSocketサーバーのセットアップ ---
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
-
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
 wss.on('connection', (ws) => {
     console.log('クライアントが接続しました。');
-    ws.send(JSON.stringify({ type: 'full_update', payload: makePayload() })); // 接続時に現在の状態を送信
-    ws.on('message', (message) => {
+    ws.send(JSON.stringify({ type: 'full_update', payload: makePayload() }));
+    ws.send(JSON.stringify({ type: 'log_update', payload: eventLog })); // 接続時に現在のログを送信
+
+    ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
             if (data.type === 'reset_stats') {
                 console.log('リセット要求を受信しました。統計情報を初期化します。');
-                state = getInitialState(); // 状態を初期化
-                broadcastUpdate(); // 全クライアントに更新を通知
+                state = getInitialState();
+                broadcastUpdate();
+            } else if (data.type === 'start_obs_recording') {
+                await obs.call('StartRecord');
+            } else if (data.type === 'stop_obs_recording') {
+                await obs.call('StopRecord');
             }
         } catch (e) {
             console.error('受信メッセージの処理中にエラー:', e);
@@ -90,6 +101,74 @@ wss.on('connection', (ws) => {
     });
 });
 
+// --- OBS WebSocketクライアントのセットアップ ---
+const obs = new OBSWebSocket();
+async function connectToOBSAtStartup() {
+    for (let i = 0; i < MAX_OBS_RETRIES; i++) {
+        try {
+            console.log(`OBS WebSocketへの接続を試みます... (試行 ${i + 1}/${MAX_OBS_RETRIES})`);
+            // OBS接続部分
+            await obs.connect(
+                process.env.OBS_WEBSOCKET_URL || 'ws://localhost:4455', 
+                process.env.OBS_WEBSOCKET_PASSWORD, // 環境変数からパスワードを読み込む
+                { eventSubscriptions: EventSubscription.Outputs }
+            );
+            console.log('OBS WebSocketに接続しました。');
+            return; // 接続に成功したので関数を終了
+        } catch (error) {
+            if (i < MAX_OBS_RETRIES - 1) {
+                // 最後でないなら5秒待機
+                await new Promise(resolve => setTimeout(resolve, 5000));
+            }
+        }
+    }
+    // ループが完了しても接続できなかった場合
+    console.error('OBSへの接続に失敗しました。OBS連携機能は無効になります。');
+}
+
+obs.on('ConnectionClosed', () => {
+    // 接続が切れたことを通知するのみで、再接続は試みない
+    console.error('OBS WebSocketとの接続が切れました。');
+});
+
+obs.on('RecordStateChanged', (data) => {
+    const isRecording = data.outputActive;
+    const obsStatePayload = { type: 'obs_recording_state', payload: { isRecording } };
+    wss.clients.forEach(client => client.send(JSON.stringify(obsStatePayload)));
+    console.log(`RecordStateChanged: ${JSON.stringify(data)}`);
+
+    if (isRecording) {
+        recordingStartTime = new Date();
+        console.log(`録画開始: ${recordingStartTime}`);
+        eventLog = ['[00:00:00] -- 録画開始 --'];
+        broadcastLogUpdate();
+    } else {
+        if (recordingStartTime) {
+            const elapsedTime = formatElapsedTime(new Date() - recordingStartTime);
+            eventLog.push(`[${elapsedTime}] -- 録画停止 --`);
+            console.log(`録画停止: ${elapsedTime}`);
+            broadcastLogUpdate();
+        }
+        recordingStartTime = null;
+    }
+});
+
+// --- ヘルパー関数 ---
+/** 経過時間を HH:MM:SS 形式の文字列にフォーマットする */
+function formatElapsedTime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+    const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+    const s = String(totalSeconds % 60).padStart(2, '0');
+    return `${h}:${m}:${s}`;
+}
+/** イベントログの更新を全クライアントに通知する */
+function broadcastLogUpdate() {
+    const payload = JSON.stringify({ type: 'log_update', payload: eventLog });
+    wss.clients.forEach(client => {
+        if (client.readyState === client.OPEN) client.send(payload);
+    });
+}
 function makePayload() {
     // クライアントに送信する用の状態オブジェクトをディープコピー
     const stateForBroadcast = JSON.parse(JSON.stringify(state));
@@ -102,16 +181,12 @@ function makePayload() {
         const newTargets = {};
         // TOP5を新しいオブジェクトにコピー
         const top5 = sortedTargets.slice(0, 5);
-        for (const [name, count] of top5) {
-            newTargets[name] = count;
-        }
-        // 6位以下を「その他」として合計
+        for (const [name, count] of top5) { newTargets[name] = count; }
         const othersTotal = sortedTargets.slice(5).reduce((sum, [, count]) => sum + count, 0);
-        if (othersTotal > 0) {
-            newTargets['OTHERS'] = othersTotal;
-        }
-        // ブロードキャスト用のstateを更新
+        if (othersTotal > 0) { newTargets['OTHERS'] = othersTotal; }
+                // ブロードキャスト用のstateを更新
         stateForBroadcast.bounty.targets = newTargets;
+        
     }
 
     // materials.detailsをカテゴリごとに処理し、TOP5と「その他」に集約する
@@ -121,29 +196,21 @@ function makePayload() {
     for (const category in originalMaterialDetails) {
         const materialsInCategory = originalMaterialDetails[category];
         const sortedMaterials = Object.entries(materialsInCategory).sort(([, a], [, b]) => b - a);
-
         if (sortedMaterials.length > 5) {
             const newCategoryDetails = {};
             const top5 = sortedMaterials.slice(0, 5);
-            for (const [name, count] of top5) {
-                newCategoryDetails[name] = count;
-            }
+            for (const [name, count] of top5) { newCategoryDetails[name] = count; }
             const othersTotal = sortedMaterials.slice(5).reduce((sum, [, count]) => sum + count, 0);
-            if (othersTotal > 0) {
-                newCategoryDetails['OTHERS'] = othersTotal;
-            }
+            if (othersTotal > 0) { newCategoryDetails['OTHERS'] = othersTotal; }
             newMaterialDetails[category] = newCategoryDetails;
         } else {
             newMaterialDetails[category] = materialsInCategory;
         }
     }
     stateForBroadcast.materials.details = newMaterialDetails;
-
     return stateForBroadcast;
 }
-
 function broadcastUpdate() {
-
     const payload = JSON.stringify({ type: 'full_update', payload: makePayload() });
     wss.clients.forEach((client) => {
         if (client.readyState === client.OPEN) {
@@ -158,13 +225,46 @@ function processJournalLine(line) {
         if (line.trim() === '') return;
         const entry = JSON.parse(line);
 
-        // 最終更新日時を記録
         if (entry.timestamp) {
             state.lastUpdateTimestamp = entry.timestamp;
         }
 
-        // --- 賞金首イベント処理 ---
-        if (entry.event === 'ShipTargeted' && entry.TargetLocked === true) {
+        // --- 録画中のイベントログ記録 ---
+        if (recordingStartTime) {
+            const elapsedTime = formatElapsedTime(new Date() - recordingStartTime);
+            let logMessage = '';
+
+            switch (entry.event) {
+                case 'Bounty':
+                    logMessage = `[${elapsedTime}] 撃破: ${entry.Target_Localised || entry.Target}`;
+                    break;
+                case 'FSDJump':
+                    logMessage = `[${elapsedTime}] ジャンプ: ${entry.StarSystem} へ`;
+                    break;
+                case 'Liftoff':
+                    logMessage = `[${elapsedTime}] 離陸: ${entry.StationName || entry.Body}`;
+                    break;
+                case 'Touchdown':
+                    logMessage = `[${elapsedTime}] 着陸: ${entry.StationName || entry.Body}`;
+                    break;
+            }
+            if (logMessage) {
+                eventLog.push(logMessage);
+                broadcastLogUpdate();
+            }
+        }
+
+        // --- 統計情報処理 ---
+        if (entry.event === 'FSDJump' || entry.event === 'Location') {
+            factionAllegianceMap = {}; // 現在の星系の派閥情報に更新
+            if (entry.Factions && Array.isArray(entry.Factions)) {
+                entry.Factions.forEach(faction => {
+                    if (faction.Name && faction.Allegiance) {
+                        factionAllegianceMap[faction.Name] = faction.Allegiance;
+                    }
+                });
+            }
+        } else if (entry.event === 'ShipTargeted' && entry.TargetLocked === true) {
             const pilotName = entry.PilotName_Localised || entry.PilotName;
             if (pilotName && typeof entry.PilotRank !== 'undefined') {
                 pilotRanks[pilotName] = entry.PilotRank;
@@ -189,103 +289,66 @@ function processJournalLine(line) {
                 if (typeof rank === 'number') rankName = COMBAT_RANKS[rank] || 'Unknown';
                 else if (typeof rank === 'string') rankName = rank;
             }
-            console.log(`Ship destroyed: ${pilotName} (${rankName})@${reward} Cr`);
             state.bounty.ranks[rankName] = (state.bounty.ranks[rankName] || 0) + 1;
-        }
-
-        // --- マテリアルイベント処理 ---
-        else if (entry.event === 'MaterialCollected') {
+        } else if (entry.event === 'MaterialCollected') {
             const category = entry.Category;
             const name = entry.Name_Localised || entry.Name;
             const count = entry.Count;
             if (!category || !name) return;
-
             state.materials.total += count;
             state.materials.categories[category] = (state.materials.categories[category] || 0) + count;
-            
             if (!state.materials.details[category]) state.materials.details[category] = {};
             state.materials.details[category][name] = (state.materials.details[category][name] || 0) + count;
         } else if (entry.event === 'FactionKillBond') {
             state.bounty.count++;
             state.bounty.totalRewards += entry.Reward;
-        }
-
-        // --- ランク進行状況イベント処理 ---
-        else if (entry.event === 'Progress') {
-            // Progressイベント: 各ランクの進行度(%)を更新
-            Object.keys(ALL_RANKS).forEach(rankType => {
-                if (state.progress[rankType] && typeof entry[rankType] !== 'undefined') {
-                    state.progress[rankType].progress = entry[rankType];
-                }
-            });
-        }
-        else if (entry.event === 'Rank' || entry.event === 'Promotion') {
-        // Rankイベント: ランクのレベルと名前を更新
-            const ranks = entry; // イベントオブジェクト自体にランク情報が含まれる
-            Object.keys(ALL_RANKS).forEach(rankType => {
-                // `ranks`オブジェクトにそのランクタイプのキーが存在するかチェック
-                if (state.progress[rankType] && typeof ranks[rankType] !== 'undefined') {
-                    const rankValue = ranks[rankType];
-                    const rankList = ALL_RANKS[rankType];
-                    state.progress[rankType].rank = rankValue;
-                    state.progress[rankType].name = rankList[rankValue] || 'Unknown';
-                    state.progress[rankType].nextName = rankList[rankValue + 1] || ''; // 次のランク名を設定
-                    // Promotionイベントの場合は、進行度を0にリセットする
-                    if (entry.event === 'Promotion') {
-                        state.progress[rankType].progress = 0;
-                        console.log(`PROMOTION! ${rankType} is now ${state.progress[rankType].name}.`);
-                    }
-                }
-            });
-        }
-        // --- 派閥情報を更新するイベント ---
-        if (entry.event === 'FSDJump' || entry.event === 'Location') {
-            factionAllegianceMap = {}; // マップをクリア
-            if (entry.Factions && Array.isArray(entry.Factions)) {
-                entry.Factions.forEach(faction => {
-                    if (faction.Name && faction.Allegiance) {
-                        factionAllegianceMap[faction.Name] = faction.Allegiance;
-                    }
-                });
-                console.log(`現在の星系の派閥情報を更新しました。`);
-            }
-        }
-
-        // --- ミッション関連イベント処理群 ---
-        else if (entry.event === 'MissionAccepted') {
+        } else if (entry.event === 'MissionAccepted') {
             const factionName = entry.Faction;
-            // 現在の星系の派閥マップから所属を取得
             const allegiance = factionAllegianceMap[factionName];
-
             if (entry.MissionID && allegiance) {
                 if (allegiance === 'Federation' || allegiance === 'Empire') {
                     activeMissions[entry.MissionID] = allegiance;
                 }
             }
-        }
-        else if (entry.event === 'MissionCompleted') {
+        } else if (entry.event === 'MissionCompleted') {
             const missionID = entry.MissionID;
             const allegiance = activeMissions[missionID];
-
             state.missions.completed++;
-
-            if (allegiance) {
-                if (allegiance === 'Federation') {
-                    state.missions.federation++;
-                } else if (allegiance === 'Empire') {
-                    state.missions.empire++;
-                }
-                delete activeMissions[missionID];
+            if (allegiance === 'Federation') {
+                state.missions.federation++;
+            } else if (allegiance === 'Empire') {
+                state.missions.empire++;
             } else {
                 state.missions.independent++;
             }
-        }
-        else if (entry.event === 'MissionFailed' || entry.event === 'MissionAbandoned') {
+            if (allegiance) {
+                delete activeMissions[missionID];
+            }
+        } else if (entry.event === 'MissionFailed' || entry.event === 'MissionAbandoned') {
             if (activeMissions[entry.MissionID]) {
                 delete activeMissions[entry.MissionID];
             }
+        } else if (entry.event === 'Progress') {
+            Object.keys(ALL_RANKS).forEach(rankType => {
+                if (state.progress[rankType] && typeof entry[rankType] !== 'undefined') {
+                    state.progress[rankType].progress = entry[rankType];
+                }
+            });
+        } else if (entry.event === 'Rank' || entry.event === 'Promotion') {
+            const ranks = entry;
+            Object.keys(ALL_RANKS).forEach(rankType => {
+                if (state.progress[rankType] && typeof ranks[rankType] !== 'undefined') {
+                    const rankValue = ranks[rankType];
+                    const rankList = ALL_RANKS[rankType];
+                    state.progress[rankType].rank = rankValue;
+                    state.progress[rankType].name = rankList[rankValue] || 'Unknown';
+                    state.progress[rankType].nextName = rankList[rankValue + 1] || '';
+                    if (entry.event === 'Promotion') {
+                        state.progress[rankType].progress = 0;
+                    }
+                }
+            });
         }
-
     } catch (e) {
         // JSONパースエラーは無視
     }
@@ -303,36 +366,28 @@ async function processFile(filePath, suppressBroadcast = false) {
         stats = fs.statSync(filePath);
     } catch (e) {
         console.error(`ファイル情報の取得に失敗: ${filePath}`, e);
-        return; // ファイルが読めなければ処理を中断
+        return;
     }
     const end = stats.size;
-
-    if (start >= end) return; // 変更なし
-
+    if (start >= end) return;
     const stream = fs.createReadStream(filePath, { encoding: 'utf-8', start });
     const rl = require('readline').createInterface({ input: stream, crlfDelay: Infinity });
-
     for await (const line of rl) {
         processJournalLine(line);
     }
-
     processedFiles[filePath] = end;
     if (!suppressBroadcast) {
         broadcastUpdate();
     }
 }
-
-// --- ファイル監視の開始 ---
 async function startMonitoring() {
     console.log(`ジャーナルディレクトリを監視中: ${JOURNAL_DIR}`);
-
     const watcher = chokidar.watch(JOURNAL_DIR, {
         persistent: true,
         ignoreInitial: false, // 起動時の既存ファイルも処理対象にする
         awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
         depth: 0 // サブディレクトリは監視しない
     });
-
     const getTodaysPrefix = () => {
         const today = new Date();
         const year = today.getFullYear();
@@ -340,7 +395,6 @@ async function startMonitoring() {
         const day = today.getDate().toString().padStart(2, '0');
         return `Journal.${year}-${month}-${day}`;
     };
-
     const processIfNeeded = async (filePath, suppressBroadcast) => {
         const filename = path.basename(filePath);
         // 今日の日付のジャーナルログファイルのみを対象
@@ -365,5 +419,6 @@ async function startMonitoring() {
 server.listen(PORT, () => {
     console.log(`サーバーがポート ${PORT} で起動しました。`);
     console.log(`ダッシュボードを開く: http://localhost:${PORT}`);
-    startMonitoring(); // 修正した関数を呼び出す
+    startMonitoring();
+    connectToOBSAtStartup(); // OBSへの接続を開始
 });

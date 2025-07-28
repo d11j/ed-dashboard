@@ -3,9 +3,18 @@ const wsUrl = `ws://${window.location.host}`;
 let socket;
 // 以前のデータ状態を保存する変数
 let previousState = null;
+// OBSの録画状態を保持
+let isRecording = false;
 
+// --- DOM Element References ---
+const resetButton = document.getElementById('reset-button');
+const recordButton = document.getElementById('record-button');
+const copyLogButton = document.getElementById('copy-log-button');
+const logDisplay = document.getElementById('event-log-display');
+
+// --- Event Listeners ---
 // リセットボタンの処理
-document.getElementById('reset-button').addEventListener('click', () => {
+resetButton.addEventListener('click', () => {
     if (socket && socket.readyState === WebSocket.OPEN) {
         socket.send(JSON.stringify({ type: 'reset_stats' }));
         console.log('リセット要求を送信しました。');
@@ -13,6 +22,29 @@ document.getElementById('reset-button').addEventListener('click', () => {
         console.error('サーバーに接続されていません。');
     }
 });
+// 録画ボタンの処理
+recordButton.addEventListener('click', () => {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        // 現在の録画状態に応じて、開始または停止の命令を送信
+        const command = isRecording ? 'stop_obs_recording' : 'start_obs_recording';
+        socket.send(JSON.stringify({ type: command }));
+        console.log(`${command} 要求を送信しました。`);
+    } else {
+        console.error('サーバーに接続されていません。');
+    }
+});
+// ログコピーボタンの処理
+copyLogButton.addEventListener('click', () => {
+    if (logDisplay.value) {
+        navigator.clipboard.writeText(logDisplay.value)
+            .then(() => {
+                copyLogButton.textContent = 'コピーしました！';
+                setTimeout(() => { copyLogButton.textContent = 'ログをコピー'; }, 2000);
+            })
+            .catch(err => console.error('コピーに失敗しました:', err));
+    }
+});
+
 
 function connect() {
     socket = new WebSocket(wsUrl);
@@ -25,14 +57,27 @@ function connect() {
 
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        if (data.type === 'full_update') {
-            // 最初のデータ受信時は、previousStateを初期化するだけ
-            if (!previousState) {
+        // メッセージタイプに応じて処理を振り分け
+        switch (data.type) {
+            case 'full_update':
+                // 最初のデータ受信時は、previousStateを初期化するだけ
+                if (!previousState) {
+                    previousState = JSON.parse(JSON.stringify(data.payload));
+                }
+                updateUI(data.payload);
+                // 現在の状態を次の比較のために保存（ディープコピー）
                 previousState = JSON.parse(JSON.stringify(data.payload));
-            }
-            updateUI(data.payload);
-            // 現在の状態を次の比較のために保存（ディープコピー）
-            previousState = JSON.parse(JSON.stringify(data.payload));
+                break;
+            case 'obs_recording_state':
+                isRecording = data.payload.isRecording;
+                updateRecordingStatusUI(isRecording);
+                break;
+            case 'log_update':
+                // ログ表示エリアを更新
+                logDisplay.value = data.payload.join('\n');
+                // テキストエリアを常に最下部にスクロール
+                logDisplay.scrollTop = logDisplay.scrollHeight;
+                break;
         }
     };
 
@@ -61,6 +106,13 @@ function highlightElement(element, className = 'highlight-value') {
     }, 1500); // 1.5秒後にハイライトを解除
 }
 
+/** OBSの録画状態に応じてUIを更新する */
+function updateRecordingStatusUI(isRec) {
+    document.body.classList.toggle('recording', isRec);
+    recordButton.classList.toggle('recording', isRec);
+    recordButton.textContent = isRec ? 'STOP RECORDING' : 'START RECORDING';
+}
+
 function updateUI(state) {
     // --- Update Last Update Time ---
     const lastUpdateEl = document.getElementById('last-update-time');
@@ -68,8 +120,6 @@ function updateUI(state) {
         const date = new Date(state.lastUpdateTimestamp);
         const timeString = date.toLocaleTimeString('en-GB'); // HH:MM:SS format
         lastUpdateEl.textContent = `Last entry: ${timeString}`;
-    } else {
-        lastUpdateEl.textContent = 'Last entry: N/A';
     }
 
     // --- Update Combat Summary ---
@@ -104,7 +154,6 @@ function updateUI(state) {
     updateProgressBars('progress-container', state.progress, previousState ? previousState.progress : null);
 }
 
-
 /**
  * ミッション完了数のサマリーUIを更新する
  * @param {object} newMissions - 新しいミッションの状態オブジェクト
@@ -112,7 +161,6 @@ function updateUI(state) {
  */
 function updateMissionSummary(newMissions, oldMissions) {
     if (!newMissions) return;
-
     const updateElement = (id, newValue, oldValue) => {
         const element = document.getElementById(id);
         if (element) {
@@ -122,13 +170,11 @@ function updateMissionSummary(newMissions, oldMissions) {
             element.textContent = newValue.toLocaleString();
         }
     };
-
     updateElement('missions-fed', newMissions.federation, oldMissions ? oldMissions.federation : 0);
     updateElement('missions-emp', newMissions.empire, oldMissions ? oldMissions.empire : 0);
     updateElement('missions-ind', newMissions.independent, oldMissions ? oldMissions.independent : 0);
     updateElement('missions-total', newMissions.completed, oldMissions ? oldMissions.completed : 0);
 }
-
 
 function updateGenericTable(tableId, newData, oldData, headers) {
     const table = document.getElementById(tableId);
@@ -145,10 +191,8 @@ function updateGenericTable(tableId, newData, oldData, headers) {
 
     const tbody = table.tBodies[0] || table.createTBody();
     const sortedData = Object.entries(newData).sort(([keyA, valueA], [keyB, valueB]) => {
-        // 'OTHERS' ラベルを常にテーブルの末尾に表示する
         if (keyA === 'OTHERS') return 1;
         if (keyB === 'OTHERS') return -1;
-        // 通常は値で降順ソート
         return valueB - valueA;
     });
     const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
@@ -172,7 +216,6 @@ function updateGenericTable(tableId, newData, oldData, headers) {
         }
     });
 
-    // 不要になった行（newDataに存在しない行）をテーブルから削除
     existingRows.forEach(row => row.remove());
 }
 
@@ -191,10 +234,8 @@ function updateKillsTable(tableId, newData, oldData) {
 
     const tbody = table.tBodies[0] || table.createTBody();
     const sortedData = Object.entries(newData).sort(([keyA, valueA], [keyB, valueB]) => {
-        // 'OTHERS' ラベルを常にテーブルの末尾に表示する
         if (keyA === 'OTHERS') return 1;
         if (keyB === 'OTHERS') return -1;
-        // 通常は値で降順ソート
         return valueB - valueA;
     });
     const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
@@ -207,7 +248,7 @@ function updateKillsTable(tableId, newData, oldData) {
                 valueCell.textContent = value.toLocaleString();
                 highlightElement(valueCell);
             }
-            tbody.appendChild(row); // 行を末尾に移動してソート順を維持
+            tbody.appendChild(row);
             existingRows.delete(key);
         } else {
             const newRow = tbody.insertRow();
@@ -219,7 +260,6 @@ function updateKillsTable(tableId, newData, oldData) {
         }
     });
 
-    // 不要になった行（newDataに存在しない行）をテーブルから削除
     existingRows.forEach(row => row.remove());
 }
 
@@ -240,7 +280,6 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
     const flatNewData = Object.entries(newData).flatMap(([category, names]) =>
         Object.entries(names).map(([name, count]) => ({ category, name, count }))
     );
-    // カテゴリでソートし、各カテゴリ内では'OTHERS'を末尾にしつつ、他は個数で降順ソート
     flatNewData.sort((a, b) => {
         const catCompare = a.category.localeCompare(b.category);
         if (catCompare !== 0) return catCompare;
@@ -262,7 +301,7 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
                 valueCell.textContent = item.count;
                 highlightElement(valueCell);
             }
-            tbody.appendChild(row); // 行を末尾に移動してソート順を維持
+            tbody.appendChild(row);
             existingRows.delete(key);
         } else {
             const newRow = tbody.insertRow();
@@ -276,7 +315,6 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
         }
     });
 
-    // 不要になった行（newDataに存在しない行）をテーブルから削除
     existingRows.forEach(row => row.remove());
 }
 
@@ -293,35 +331,24 @@ function getRankIcon(rankName) {
     const rankLevel = rankMap[rankName] || 0;
     const isElite = rankLevel === 8;
 
-    // --- SVGパーツ定義を定数にまとめておく ---
     const PART_ID = 'octagon-part';
     const PART_POINTS = '30,5 70,5 62,23 38,23';
     const OUTLINE_POINTS = '30,5 70,5 95,30 95,70 70,95 30,95 5,70 5,30';
-    // Eliteランク専用の中央紋章
     const ELITE_EMBLEM = '<polygon class="fill" points="50,50 25,30 50,75 75,30"/>';
 
-    // --- ランクに応じてスタイルと追加パーツを動的に決定 ---
     const style = `
         <style>
-            .outline { 
-                fill: none; 
-                stroke: ${isElite ? '#fff' : '#ff9900'}; 
-                stroke-width: ${isElite ? 4 : 3}; 
-                opacity: ${isElite ? 1 : 0.6}; 
-            }
+            .outline { fill: none; stroke: ${isElite ? '#fff' : '#ff9900'}; stroke-width: ${isElite ? 4 : 3}; opacity: ${isElite ? 1 : 0.6}; }
             .fill { fill: #ff9900; }
             .elite-emblem { fill: none; stroke: #fff; stroke-width: 4; stroke-linecap: round; }
         </style>
     `;
     const extraParts = isElite ? ELITE_EMBLEM : '';
 
-    // --- use要素を生成 ---
-    // Array.from()で書くと少し短くなる
     const rotationParts = Array.from({ length: rankLevel }, (_, i) => 
         `<use href="#${PART_ID}" transform="rotate(${i * 45}, 50, 50)" />`
     ).join('');
 
-    // --- SVG全体を組み立て ---
     const svgString = `
         <svg width="24" height="24" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
             <defs>
@@ -334,7 +361,6 @@ function getRankIcon(rankName) {
         </svg>
     `;
 
-    // DOM要素に変換するこのやり方はよくある手口。問題ない。
     const div = document.createElement('div');
     div.innerHTML = svgString.trim();
     return div.firstChild;
@@ -344,7 +370,6 @@ function updateProgressBars(containerId, newProgressData, oldProgressData) {
     const container = document.getElementById(containerId);
     if (!container) return;
 
-    // 表示順を定義 (Super Powerは先に表示)
     const rankOrder = ['Federation', 'Empire', 'Combat', 'Trade', 'Explore', 'Soldier', 'Exobiologist', 'CQC'];
 
     rankOrder.forEach(rankType => {
@@ -355,7 +380,6 @@ function updateProgressBars(containerId, newProgressData, oldProgressData) {
         const elementId = `progress-item-${rankType}`;
         let progressItem = document.getElementById(elementId);
 
-        // 要素がまだ存在しない場合は作成
         if (!progressItem) {
             progressItem = document.createElement('div');
             progressItem.id = elementId;
@@ -383,11 +407,9 @@ function updateProgressBars(containerId, newProgressData, oldProgressData) {
         const newProgress = data.progress || 0;
         progressBar.style.width = `${newProgress}%`;
         
-        // バーの中央に進捗率を表示し、上部のテキストはクリア
         progressText.textContent = `${Math.round(newProgress)}%`;
         progressItem.querySelector('.rank-progress-percent').textContent = '';
 
-        // サーバーから直接送られてきた名前を使用
         currentRankEl.textContent = data.name || '';
         nextRankEl.textContent = data.nextName || '';
 

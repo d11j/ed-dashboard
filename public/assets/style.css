@@ -12,6 +12,7 @@ body {
     color: var(--text-color);
     margin: 0;
     padding: 10px;
+    transition: outline 0.3s ease-in-out;
 }
 h1 {
     font-size: 1.8em;
@@ -147,6 +148,7 @@ td:last-child {
 .controls {
     text-align: left;
     margin-bottom: 10px;
+    margin-left: 10px; /* for alignment */
 }
 .reset-button {
     background-color: #dc3545;
@@ -242,4 +244,56 @@ td:last-child {
 }
 .rank-name-next {
     right: 8px;
+}
+
+/* --- New OBS and Log Styles --- */
+.record-button {
+    background-color: #28a745;
+    margin-left: 10px;
+}
+.record-button:hover {
+    background-color: #218838;
+}
+.record-button.recording {
+    background-color: #dc3545;
+}
+.record-button.recording:hover {
+    background-color: #c82333;
+}
+.copy-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 1em;
+    font-weight: bold;
+    margin-top: 10px;
+    width: 100%;
+}
+.copy-button:hover {
+    background-color: #0069d9;
+}
+body.recording {
+    outline: 4px solid #dc3545;
+    outline-offset: -4px;
+    box-sizing: border-box;
+}
+#event-log-display {
+    width: 100%;
+    box-sizing: border-box;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.9em;
+    padding: 8px;
+    resize: vertical;
+}
+#event-log-display::placeholder {
+    color: var(--text-color);
+    opacity: 0.5;
 }

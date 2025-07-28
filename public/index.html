@@ -13,6 +13,7 @@
     <div id="status-indicator" class="status disconnected">Offline</div>
     <div class="controls">
         <button id="reset-button" class="reset-button">RESET STATS</button>
+        <button id="record-button" class="record-button">START RECORDING</button>
     </div>
     <div class="container">
         <!-- Left Column -->
@@ -69,6 +70,17 @@
                     </div>
                 </div>
             </div>
+
+            <div class="card">
+                <div class="toggle-section">
+                    <input type="checkbox" id="toggle-log" class="toggle-checkbox" checked>
+                    <label for="toggle-log" class="toggle-label h2">イベントログ</label>
+                    <div class="toggle-content">
+                        <textarea id="event-log-display" readonly rows="10" placeholder="OBSで録画を開始すると、ここにログが記録されます。"></textarea>
+                        <button id="copy-log-button" class="copy-button">ログをコピー</button>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Right Column -->
@@ -107,7 +119,6 @@
                 </div>
             </div>
 
-            <!-- Materials Collected Card -->
             <div class="card">
                 <div class="toggle-section">
                     <input type="checkbox" id="toggle-mat-summary" class="toggle-checkbox" checked>

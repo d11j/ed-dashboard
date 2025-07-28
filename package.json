@@ -4,11 +4,12 @@
   "description": "Real-time dashboard for Elite: Dangerous journal stats.",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node --env-file=.env server.js"
   },
   "dependencies": {
     "chokidar": "^3.5.3",
     "express": "^4.18.2",
+    "obs-websocket-js": "^5.0.6",
     "ws": "^8.13.0"
   }
 }
