@@ -1,0 +1,4 @@
+# OBS WebSocketのパスワード（設定している場合のみ）
+# この行の "YOUR_PASSWORD_HERE" を実際のパスワードに置き換えてください。
+# パスワードを設定していない場合は、この行をコメントアウトするか、空にしてください。
+OBS_WEBSOCKET_PASSWORD="YOUR_PASSWORD_HERE"
