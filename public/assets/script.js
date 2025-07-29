@@ -36,7 +36,22 @@ recordButton.addEventListener('click', () => {
 // ログコピーボタンの処理
 copyLogButton.addEventListener('click', () => {
     if (logDisplay.value) {
-        navigator.clipboard.writeText(logDisplay.value)
+        // 1. textareaから全てのテキストを取得
+        const rawLog = logDisplay.value;
+
+        // 2. 正規表現でチャプター用の行を抽出・加工する
+        const chapterLog = rawLog
+            .split('\n') // 行ごとに分割
+            .filter(line => !line.startsWith('*')) // '*'で始まらない行のみをフィルタリング
+            .map(line => {
+                // 例: "[00:15:32] -- 戦闘開始 --"  ->  "00:15:32 - 戦闘開始"
+                // 例: "[00:28:10] ジャンプ: Sol へ" ->  "00:28:10 - ジャンプ: Sol へ"
+                return line.replace(/^\[(\d{2}:\d{2}:\d{2})\]\s(?:--\s)?(.+?)(?:\s--)?$/, '$1 - $2');
+            })
+            .join('\n'); // 再び改行で結合
+
+        // 3. 加工したテキストをクリップボードにコピー
+        navigator.clipboard.writeText(chapterLog)
             .then(() => {
                 copyLogButton.textContent = 'コピーしました！';
                 setTimeout(() => { copyLogButton.textContent = 'ログをコピー'; }, 2000);
@@ -44,7 +59,6 @@ copyLogButton.addEventListener('click', () => {
             .catch(err => console.error('コピーに失敗しました:', err));
     }
 });
-
 
 function connect() {
     socket = new WebSocket(wsUrl);

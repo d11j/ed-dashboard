@@ -72,6 +72,13 @@ let factionAllegianceMap = {}; // 現在の星系の派閥と所属のマップ
 let recordingStartTime = null; // 録画開始時刻
 let eventLog = [];             // イベントログの配列
 
+// 状態管理フラグ
+let isFighting = false; // 戦闘中かどうか
+let wasHardpointsDeployed = false; // ハードポイントの以前の状態
+let isLandingSequence = false;  // 着陸シーケンス中
+let wasLandingGearDown = false; // ランディングギアの以前の状態
+let isInitialTakeoffComplete = false; // セッション開始後の初回離陸が完了したか
+
 // --- ExpressサーバーとWebSocketサーバーのセットアップ ---
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
@@ -229,33 +236,61 @@ function processJournalLine(line) {
             state.lastUpdateTimestamp = entry.timestamp;
         }
 
+        // --- ▼▼▼ 状態フラグ管理ロジック ▼▼▼ ---
+        if (entry.event === 'LoadGame') {
+            if (entry.Docked || entry.StartLanded) {
+                isInitialTakeoffComplete = false;
+                wasLandingGearDown = true;
+            } else {
+                isInitialTakeoffComplete = true;
+                wasLandingGearDown = false;
+            }
+        } else if (entry.event === 'Undocked' || entry.event === 'Liftoff') {
+            if (!isInitialTakeoffComplete) {
+                isInitialTakeoffComplete = true;
+            }
+        }
+
         // --- 録画中のイベントログ記録 ---
         if (recordingStartTime) {
             const elapsedTime = formatElapsedTime(new Date() - recordingStartTime);
             let logMessage = '';
+            let isMinorEvent = false;
 
             switch (entry.event) {
                 case 'Bounty':
-                    logMessage = `[${elapsedTime}] 撃破: ${entry.Target_Localised || entry.Target.charAt(0).toUpperCase() + entry.Target.slice(1)}`;
+                    if (isFighting) isMinorEvent = true;
+                    logMessage = `撃破: ${entry.Target_Localised || entry.Target}`;
                     break;
                 case 'FSDJump':
-                    logMessage = `[${elapsedTime}] ジャンプ: ${entry.StarSystem} へ`;
+                    logMessage = `ジャンプ: ${entry.StarSystem} へ`;
                     break;
-                case 'Docked': // ステーションへの着艦
-                    logMessage = `[${elapsedTime}] 着艦: ${entry.StationName}`;
+                case 'DockingGranted':
+                    if (!isLandingSequence) {
+                        isLandingSequence = true;
+                        logMessage = '-- 着陸開始 --';
+                    }
                     break;
-                case 'Undocked': // ステーションからの離艦
-                    logMessage = `[${elapsedTime}] 離艦: ${entry.StationName}`;
+                case 'DockingCancelled':
+                    if (isLandingSequence) {
+                        isLandingSequence = false;
+                        logMessage = '-- 着陸キャンセル --';
+                    }
                     break;
-                case 'Touchdown': // 地表への着陸
-                    logMessage = `[${elapsedTime}] 着陸: ${entry.Body}`;
+                case 'Docked':
+                case 'Touchdown':
+                    if (isLandingSequence) isLandingSequence = false;
+                    logMessage = entry.event === 'Docked' ? `着艦: ${entry.StationName}` : `着陸: ${entry.Body}`;
                     break;
-                case 'Liftoff': // 地表からの離陸
-                    logMessage = `[${elapsedTime}] 離陸: ${entry.Body}`;
+                case 'Undocked':
+                case 'Liftoff':
+                    logMessage = entry.event === 'Undocked' ? `離艦: ${entry.StationName}` : `離陸: ${entry.Body}`;
                     break;
             }
+
             if (logMessage) {
-                eventLog.push(logMessage);
+                const prefix = isMinorEvent ? '* ' : '';
+                eventLog.push(`${prefix}[${elapsedTime}] ${logMessage}`);
                 broadcastLogUpdate();
             }
         }
@@ -386,6 +421,47 @@ async function processFile(filePath, suppressBroadcast = false) {
         broadcastUpdate();
     }
 }
+
+/**
+ * Status.jsonをパースし、状態変化に応じてログを記録する
+ * @param {object} statusData - Status.jsonから読み込んだJSONオブジェクト
+ */
+function processStatus(statusData) {
+    if (!statusData || !recordingStartTime) return; // 録画中でなければ何もしない
+
+    const now = new Date();
+
+    // 1. ハードポイントの状態をチェック (戦闘開始/終了)
+    const isHardpointsDeployed = (statusData.Flags & (1 << 6)) !== 0;
+    if (isHardpointsDeployed !== wasHardpointsDeployed) {
+        isFighting = isHardpointsDeployed;
+        const elapsedTime = formatElapsedTime(now - recordingStartTime);
+        const logMessage = isHardpointsDeployed ? '-- 戦闘開始 --' : '-- 戦闘終了 --';
+        eventLog.push(`[${elapsedTime}] ${logMessage}`);
+        broadcastLogUpdate();
+        wasHardpointsDeployed = isHardpointsDeployed;
+    }
+
+    // 2. ランディングギアの状態をチェック (着陸開始/中断)
+    const isLandingGearDown = (statusData.Flags & (1 << 2)) !== 0;
+    if (isLandingGearDown !== wasLandingGearDown) {
+        const elapsedTime = formatElapsedTime(now - recordingStartTime);
+        // ギアが展開され、初回離陸が完了している場合
+        if (isLandingGearDown && !isLandingSequence && isInitialTakeoffComplete) {
+            isLandingSequence = true;
+            eventLog.push(`[${elapsedTime}] -- 着陸開始 --`);
+            broadcastLogUpdate();
+        } 
+        // ギアが格納され、着陸シーケンス中だった場合
+        else if (!isLandingGearDown && isLandingSequence) {
+            isLandingSequence = false;
+            eventLog.push(`[${elapsedTime}] -- 着陸中断 --`);
+            broadcastLogUpdate();
+        }
+        wasLandingGearDown = isLandingGearDown;
+    }
+}
+
 async function startMonitoring() {
     console.log(`ジャーナルディレクトリを監視中: ${JOURNAL_DIR}`);
     const watcher = chokidar.watch(JOURNAL_DIR, {
@@ -394,6 +470,27 @@ async function startMonitoring() {
         awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
         depth: 0 // サブディレクトリは監視しない
     });
+    
+    const statusPath = path.join(JOURNAL_DIR, 'Status.json');
+    const statusWatcher = chokidar.watch(statusPath, {
+        persistent: true,
+        ignoreInitial: true,
+        awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 }
+    });
+
+    statusWatcher.on('change', (filePath) => {
+        fs.readFile(filePath, 'utf-8', (err, data) => {
+            if (err) return;
+            try {
+                const statusData = JSON.parse(data);
+                processStatus(statusData);
+            } catch (e) {
+                // パースエラーは無視
+            }
+        });
+    });
+
+
     const getTodaysPrefix = () => {
         const today = new Date();
         const year = today.getFullYear();
