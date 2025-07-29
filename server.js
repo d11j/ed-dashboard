@@ -236,16 +236,22 @@ function processJournalLine(line) {
 
             switch (entry.event) {
                 case 'Bounty':
-                    logMessage = `[${elapsedTime}] 撃破: ${entry.Target_Localised || entry.Target}`;
+                    logMessage = `[${elapsedTime}] 撃破: ${entry.Target_Localised || entry.Target.charAt(0).toUpperCase() + entry.Target.slice(1)}`;
                     break;
                 case 'FSDJump':
                     logMessage = `[${elapsedTime}] ジャンプ: ${entry.StarSystem} へ`;
                     break;
-                case 'Liftoff':
-                    logMessage = `[${elapsedTime}] 離陸: ${entry.StationName || entry.Body}`;
+                case 'Docked': // ステーションへの着艦
+                    logMessage = `[${elapsedTime}] 着艦: ${entry.StationName}`;
                     break;
-                case 'Touchdown':
-                    logMessage = `[${elapsedTime}] 着陸: ${entry.StationName || entry.Body}`;
+                case 'Undocked': // ステーションからの離艦
+                    logMessage = `[${elapsedTime}] 離艦: ${entry.StationName}`;
+                    break;
+                case 'Touchdown': // 地表への着陸
+                    logMessage = `[${elapsedTime}] 着陸: ${entry.Body}`;
+                    break;
+                case 'Liftoff': // 地表からの離陸
+                    logMessage = `[${elapsedTime}] 離陸: ${entry.Body}`;
                     break;
             }
             if (logMessage) {
