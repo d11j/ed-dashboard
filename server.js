@@ -285,6 +285,8 @@ function processJournalLine(line) {
                 case 'Undocked':
                 case 'Liftoff':
                     logMessage = entry.event === 'Undocked' ? `離艦: ${entry.StationName}` : `離陸: ${entry.Body}`;
+                    isLandingSequence = false;
+                    wasLandingGearDown = true;
                     break;
             }
 
@@ -470,7 +472,7 @@ async function startMonitoring() {
         awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
         depth: 0 // サブディレクトリは監視しない
     });
-    
+
     const statusPath = path.join(JOURNAL_DIR, 'Status.json');
     const statusWatcher = chokidar.watch(statusPath, {
         persistent: true,
