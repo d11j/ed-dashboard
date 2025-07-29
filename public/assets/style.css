@@ -276,11 +276,6 @@ td:last-child {
 .copy-button:hover {
     background-color: #0069d9;
 }
-body.recording {
-    outline: 4px solid #dc3545;
-    outline-offset: -4px;
-    box-sizing: border-box;
-}
 #event-log-display {
     width: 100%;
     box-sizing: border-box;

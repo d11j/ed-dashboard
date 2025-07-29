@@ -108,7 +108,6 @@ function highlightElement(element, className = 'highlight-value') {
 
 /** OBSの録画状態に応じてUIを更新する */
 function updateRecordingStatusUI(isRec) {
-    document.body.classList.toggle('recording', isRec);
     recordButton.classList.toggle('recording', isRec);
     recordButton.textContent = isRec ? 'STOP RECORDING' : 'START RECORDING';
 }
