@@ -3,20 +3,21 @@ import fs from 'fs';
 import path from 'path';
 import { createInterface } from 'readline';
 import { ALL_RANKS, COMBAT_RANKS, JOURNAL_DIR } from './constants.js';
+import { formatElapsedTime } from './utils.js';
 
 export class JournalProcessor {
-    _pilotRanks = {}; // 敵パイロットのランク情報を保持
-    _processedFiles = {};
-    _activeMissions = {}; // 進行中のミッション情報を保持
-    _factionAllegianceMap = {}; // 現在の星系の派閥と所属のマップ
+    #pilotRanks = {}; // 敵パイロットのランク情報を保持
+    #processedFiles = {};
+    #activeMissions = {}; // 進行中のミッション情報を保持
+    #factionAllegianceMap = {}; // 現在の星系の派閥と所属のマップ
 
     // 状態管理フラグ
-    _isFighting = false; // 戦闘中かどうか
-    _wasHardpointsDeployed = false; // ハードポイントの以前の状態
-    _isLandingSequence = false;  // 着陸シーケンス中
-    _wasLandingGearDown = false; // ランディングギアの以前の状態
-    _isInitialTakeoffComplete = false; // セッション開始後の初回離陸が完了したか
-    _recordingStartTime = null; // 録画開始時刻
+    #isFighting = false; // 戦闘中かどうか
+    #wasHardpointsDeployed = false; // ハードポイントの以前の状態
+    #isLandingSequence = false;  // 着陸シーケンス中
+    #wasLandingGearDown = false; // ランディングギアの以前の状態
+    #isInitialTakeoffComplete = false; // セッション開始後の初回離陸が完了したか
+    #recordingStartTime = null; // 録画開始時刻
     eventLog = []; // イベントログ
 
     #broadcastUpdateCallback;
@@ -49,7 +50,7 @@ export class JournalProcessor {
                 if (err) return;
                 try {
                     const statusData = JSON.parse(data);
-                    this._processStatus(statusData);
+                    this.#processStatus(statusData);
                 } catch (e) {
                     // パースエラーは無視
                 }
@@ -68,7 +69,7 @@ export class JournalProcessor {
             // 今日の日付のジャーナルログファイルのみを対象
             if (filename.startsWith(getTodaysPrefix()) && filename.endsWith('.log')) {
                 console.debug(`Process ${filename}`);
-                this._processFile(filePath, suppressBroadcast);
+                this.#processFile(filePath, suppressBroadcast);
             }
         };
 
@@ -79,7 +80,7 @@ export class JournalProcessor {
             .on('change', (filePath) => processIfNeeded(filePath, false)) // 変更時はブロードキャストする
             .on('ready', () => {
                 console.log('初回スキャン完了。リアルタイム監視中...');
-                this.#broadcastUpdateCallback(); // 初回スキャン完了後に一度だけブロードキャスト
+                this.#broadcastUpdateCallback(this.state); // 初回スキャン完了後に一度だけブロードキャスト
             })
             .on('error', (error) => console.error(`ファイル監視エラー: ${error}`));
     }
@@ -117,8 +118,8 @@ export class JournalProcessor {
      * @param {string} filePath 処理するファイルのパス
      * @param {boolean} suppressBroadcast trueの場合、処理後のブロードキャストを抑制する
      */
-    async _processFile(filePath, suppressBroadcast = false) {
-        const start = this._processedFiles[filePath] || 0;
+    async #processFile(filePath, suppressBroadcast = false) {
+        const start = this.#processedFiles[filePath] || 0;
         let stats;
         try {
             stats = fs.statSync(filePath);
@@ -131,11 +132,11 @@ export class JournalProcessor {
         const stream = fs.createReadStream(filePath, { encoding: 'utf-8', start });
         const rl = createInterface({ input: stream, crlfDelay: Infinity });
         for await (const line of rl) {
-            this._processJournalLine(line);
+            this.#processJournalLine(line);
         }
-        this._processedFiles[filePath] = end;
+        this.#processedFiles[filePath] = end;
         if (!suppressBroadcast) {
-            this.#broadcastUpdateCallback();
+            this.#broadcastUpdateCallback(this.state);
         }
     }
 
@@ -143,44 +144,44 @@ export class JournalProcessor {
      * Status.jsonをパースし、状態変化に応じてログを記録する
      * @param {object} statusData - Status.jsonから読み込んだJSONオブジェクト
      */
-    _processStatus(statusData) {
+    #processStatus(statusData) {
         if (!statusData || !recordingStartTime) return; // 録画中でなければ何もしない
 
         const now = new Date();
 
         // 1. ハードポイントの状態をチェック (戦闘開始/終了)
         const isHardpointsDeployed = (statusData.Flags & (1 << 6)) !== 0;
-        if (isHardpointsDeployed !== this._wasHardpointsDeployed) {
-            this._isFighting = isHardpointsDeployed;
+        if (isHardpointsDeployed !== this.#wasHardpointsDeployed) {
+            this.#isFighting = isHardpointsDeployed;
             const elapsedTime = formatElapsedTime(now - recordingStartTime);
             const logMessage = isHardpointsDeployed ? '-- 戦闘開始 --' : '-- 戦闘終了 --';
             this.eventLog.push(`[${elapsedTime}] ${logMessage}`);
-            this.#broadcastLogCallback();
-            this._wasHardpointsDeployed = isHardpointsDeployed;
+            this.#broadcastLogCallback(this.eventLog);
+            this.#wasHardpointsDeployed = isHardpointsDeployed;
         }
 
         // 2. ランディングギアの状態をチェック (着陸開始/中断)
         const isLandingGearDown = (statusData.Flags & (1 << 2)) !== 0;
-        if (isLandingGearDown !== this._wasLandingGearDown) {
+        if (isLandingGearDown !== this.#wasLandingGearDown) {
             const elapsedTime = formatElapsedTime(now - recordingStartTime);
             // ギアが展開され、初回離陸が完了している場合
-            if (isLandingGearDown && !this._isLandingSequence && this._isInitialTakeoffComplete) {
-                this._isLandingSequence = true;
+            if (isLandingGearDown && !this.#isLandingSequence && this.#isInitialTakeoffComplete) {
+                this.#isLandingSequence = true;
                 this.eventLog.push(`[${elapsedTime}] -- 着陸開始 --`);
-                this.#broadcastLogCallback();
+                this.#broadcastLogCallback(this.eventLog);
             }
             // ギアが格納され、着陸シーケンス中だった場合
             else if (!isLandingGearDown && isLandingSequence) {
                 isLandingSequence = false;
                 eventLog.push(`[${elapsedTime}] -- 着陸中断 --`);
-                this.#broadcastLogCallback();
+                this.#broadcastLogCallback(this.eventLog);
             }
-            this._wasLandingGearDown = isLandingGearDown;
+            this.#wasLandingGearDown = isLandingGearDown;
         }
     }
 
     // --- ジャーナル処理ロジック ---
-    _processJournalLine(line) {
+    #processJournalLine(line) {
         try {
             if (line.trim() === '') return;
             const entry = JSON.parse(line);
@@ -192,15 +193,15 @@ export class JournalProcessor {
             // --- ▼▼▼ 状態フラグ管理ロジック ▼▼▼ ---
             if (entry.event === 'LoadGame') {
                 if (entry.Docked || entry.StartLanded) {
-                    this._isInitialTakeoffComplete = false;
-                    this._wasLandingGearDown = true;
+                    this.#isInitialTakeoffComplete = false;
+                    this.#wasLandingGearDown = true;
                 } else {
-                    this._isInitialTakeoffComplete = true;
-                    this._wasLandingGearDown = false;
+                    this.#isInitialTakeoffComplete = true;
+                    this.#wasLandingGearDown = false;
                 }
             } else if (entry.event === 'Undocked' || entry.event === 'Liftoff') {
-                if (!this._isInitialTakeoffComplete) {
-                    this._isInitialTakeoffComplete = true;
+                if (!this.#isInitialTakeoffComplete) {
+                    this.#isInitialTakeoffComplete = true;
                 }
             }
 
@@ -212,7 +213,7 @@ export class JournalProcessor {
 
                 switch (entry.event) {
                     case 'Bounty':
-                        if (this._isFighting) isMinorEvent = true;
+                        if (this.#isFighting) isMinorEvent = true;
                         logMessage = `撃破: ${entry.Target_Localised || entry.Target}`;
                         break;
                     case 'FSDJump':
@@ -220,50 +221,50 @@ export class JournalProcessor {
                         break;
                     case 'DockingGranted':
                         if (!isLandingSequence) {
-                            this._isLandingSequence = true;
+                            this.#isLandingSequence = true;
                             logMessage = '-- 着陸開始 --';
                         }
                         break;
                     case 'DockingCancelled':
-                        if (this._isLandingSequence) {
-                            this._isLandingSequence = false;
+                        if (this.#isLandingSequence) {
+                            this.#isLandingSequence = false;
                             logMessage = '-- 着陸キャンセル --';
                         }
                         break;
                     case 'Docked':
                     case 'Touchdown':
-                        if (this._isLandingSequence) this._isLandingSequence = false;
+                        if (this.#isLandingSequence) this.#isLandingSequence = false;
                         logMessage = entry.event === 'Docked' ? `着艦: ${entry.StationName}` : `着陸: ${entry.Body}`;
                         break;
                     case 'Undocked':
                     case 'Liftoff':
                         logMessage = entry.event === 'Undocked' ? `離艦: ${entry.StationName}` : `離陸: ${entry.Body}`;
-                        this._isLandingSequence = false;
-                        this._wasLandingGearDown = true;
+                        this.#isLandingSequence = false;
+                        this.#wasLandingGearDown = true;
                         break;
                 }
 
                 if (logMessage) {
                     const prefix = isMinorEvent ? '* ' : '';
                     eventLog.push(`${prefix}[${elapsedTime}] ${logMessage}`);
-                    this.#broadcastLogCallback();
+                    this.#broadcastLogCallback(this.eventLog);
                 }
             }
 
             // --- 統計情報処理 ---
             if (entry.event === 'FSDJump' || entry.event === 'Location') {
-                this._factionAllegianceMap = {}; // 現在の星系の派閥情報に更新
+                this.#factionAllegianceMap = {}; // 現在の星系の派閥情報に更新
                 if (entry.Factions && Array.isArray(entry.Factions)) {
                     entry.Factions.forEach(faction => {
                         if (faction.Name && faction.Allegiance) {
-                            this._factionAllegianceMap[faction.Name] = faction.Allegiance;
+                            this.#factionAllegianceMap[faction.Name] = faction.Allegiance;
                         }
                     });
                 }
             } else if (entry.event === 'ShipTargeted' && entry.TargetLocked === true) {
                 const pilotName = entry.PilotName_Localised || entry.PilotName;
                 if (pilotName && typeof entry.PilotRank !== 'undefined') {
-                    this._pilotRanks[pilotName] = entry.PilotRank;
+                    this.#pilotRanks[pilotName] = entry.PilotRank;
                 }
             } else if (entry.event === 'Bounty') {
                 this.state.bounty.count++;
@@ -280,8 +281,8 @@ export class JournalProcessor {
                 }
                 const pilotName = entry.PilotName_Localised || entry.PilotName;
                 let rankName = 'Unknown';
-                if (pilotName && typeof this._pilotRanks[pilotName] !== 'undefined') {
-                    const rank = this._pilotRanks[pilotName];
+                if (pilotName && typeof this.#pilotRanks[pilotName] !== 'undefined') {
+                    const rank = this.#pilotRanks[pilotName];
                     if (typeof rank === 'number') rankName = COMBAT_RANKS[rank] || 'Unknown';
                     else if (typeof rank === 'string') rankName = rank;
                 }
@@ -300,15 +301,15 @@ export class JournalProcessor {
                 this.state.bounty.totalRewards += entry.Reward;
             } else if (entry.event === 'MissionAccepted') {
                 const factionName = entry.Faction;
-                const allegiance = this._factionAllegianceMap[factionName];
+                const allegiance = this.#factionAllegianceMap[factionName];
                 if (entry.MissionID && allegiance) {
                     if (allegiance === 'Federation' || allegiance === 'Empire') {
-                        this._activeMissions[entry.MissionID] = allegiance;
+                        this.#activeMissions[entry.MissionID] = allegiance;
                     }
                 }
             } else if (entry.event === 'MissionCompleted') {
                 const missionID = entry.MissionID;
-                const allegiance = this._activeMissions[missionID];
+                const allegiance = this.#activeMissions[missionID];
                 this.state.missions.completed++;
                 if (allegiance === 'Federation') {
                     this.state.missions.federation++;
@@ -318,11 +319,11 @@ export class JournalProcessor {
                     this.state.missions.independent++;
                 }
                 if (allegiance) {
-                    delete this._activeMissions[missionID];
+                    delete this.#activeMissions[missionID];
                 }
             } else if (entry.event === 'MissionFailed' || entry.event === 'MissionAbandoned') {
-                if (this._activeMissions[entry.MissionID]) {
-                    delete this._activeMissions[entry.MissionID];
+                if (this.#activeMissions[entry.MissionID]) {
+                    delete this.#activeMissions[entry.MissionID];
                 }
             } else if (entry.event === 'Progress') {
                 Object.keys(ALL_RANKS).forEach(rankType => {
@@ -349,16 +350,6 @@ export class JournalProcessor {
             // JSONパースエラーは無視
         }
     }
-}
-
-// --- ヘルパー関数 ---
-/** 経過時間を HH:MM:SS 形式の文字列にフォーマットする */
-function formatElapsedTime(ms) {
-    const totalSeconds = Math.floor(ms / 1000);
-    const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
-    const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
-    const s = String(totalSeconds % 60).padStart(2, '0');
-    return `${h}:${m}:${s}`;
 }
 
 export default JournalProcessor

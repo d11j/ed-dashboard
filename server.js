@@ -47,15 +47,15 @@ const getInitialState = () => ({
 let state = getInitialState(); // 初期化
 
 /** イベントログの更新を全クライアントに通知する */
-function broadcastLogUpdate() {
+function broadcastLogUpdate(eventLog) {
     const payload = JSON.stringify({ type: 'log_update', payload: eventLog });
     wss.clients.forEach(client => {
         if (client.readyState === client.OPEN) client.send(payload);
     });
 }
 
-const broadcastUpdate = () => {
-    const payload = JSON.stringify({ type: 'full_update', payload: makePayload(journalProcessor.state) });
+const broadcastUpdate = (state) => {
+    const payload = JSON.stringify({ type: 'full_update', payload: makePayload(state) });
     wss.clients.forEach((client) => {
         if (client.readyState === client.OPEN) {
             client.send(payload);
