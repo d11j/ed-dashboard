@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node --env-file=.env server.js"
   },
+  "type": "module",
   "dependencies": {
     "chokidar": "^3.5.3",
     "express": "^4.18.2",
