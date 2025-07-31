@@ -5,44 +5,15 @@ import { EventSubscription, OBSWebSocket } from 'obs-websocket-js';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
-import { COMBAT_RANKS, CQC_RANKS, EMP_RANKS, EXOBIOLOGIST_RANKS, EXPLORE_RANKS, FED_RANKS, MAX_OBS_RETRIES, PORT, SOLDIER_RANKS, TRADE_RANKS } from './src/constants.js';
+import { MAX_OBS_RETRIES, PORT } from './src/constants.js';
 import JournalProcessor from './src/journalProcessor.js';
+import { getInitialState } from './src/utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // --- グローバル状態変数 ---
-// 初期状態を関数として定義
-const getInitialState = () => ({
-    lastUpdateTimestamp: null,
-    bounty: {
-        count: 0,
-        totalRewards: 0,
-        targets: {},
-        ranks: {}
-    },
-    materials: {
-        total: 0,
-        categories: {},
-        details: {}
-    },
-    missions: { // ミッション完了数
-        completed: 0,
-        federation: 0,
-        empire: 0,
-        independent: 0
-    },
-    progress: {
-        Combat: { rank: 0, name: COMBAT_RANKS[0], progress: 0, nextName: COMBAT_RANKS[1] },
-        Trade: { rank: 0, name: TRADE_RANKS[0], progress: 0, nextName: TRADE_RANKS[1] },
-        Explore: { rank: 0, name: EXPLORE_RANKS[0], progress: 0, nextName: EXPLORE_RANKS[1] },
-        Federation: { rank: 0, name: FED_RANKS[0], progress: 0, nextName: FED_RANKS[1] },
-        Empire: { rank: 0, name: EMP_RANKS[0], progress: 0, nextName: EMP_RANKS[1] },
-        CQC: { rank: 0, name: CQC_RANKS[0], progress: 0, nextName: CQC_RANKS[1] },
-        Soldier: { rank: 0, name: SOLDIER_RANKS[0], progress: 0, nextName: SOLDIER_RANKS[1] },
-        Exobiologist: { rank: 0, name: EXOBIOLOGIST_RANKS[0], progress: 0, nextName: EXOBIOLOGIST_RANKS[1] }
-    }
-});
+
 
 let state = getInitialState(); // 初期化
 
@@ -50,7 +21,9 @@ let state = getInitialState(); // 初期化
 function broadcastLogUpdate(eventLog) {
     const payload = JSON.stringify({ type: 'log_update', payload: eventLog });
     wss.clients.forEach(client => {
-        if (client.readyState === client.OPEN) client.send(payload);
+        if (client.readyState === client.OPEN) {
+            client.send(payload);
+        }
     });
 }
 

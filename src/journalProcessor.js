@@ -68,7 +68,6 @@ export class JournalProcessor {
             const filename = path.basename(filePath);
             // 今日の日付のジャーナルログファイルのみを対象
             if (filename.startsWith(getTodaysPrefix()) && filename.endsWith('.log')) {
-                console.debug(`Process ${filename}`);
                 this.#processFile(filePath, suppressBroadcast);
             }
         };
