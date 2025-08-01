@@ -12,7 +12,6 @@ export class JournalProcessor {
     #factionAllegianceMap = {}; // 現在の星系の派閥と所属のマップ
 
     // 状態管理フラグ
-    #isFighting = false; // 戦闘中かどうか
     #wasHardpointsDeployed = false; // ハードポイントの以前の状態
     #isLandingSequence = false;  // 着陸シーケンス中
     #wasLandingGearDown = false; // ランディングギアの以前の状態
@@ -89,17 +88,17 @@ export class JournalProcessor {
      * (server.jsからOBSのイベントに応じて呼び出す)
      */
     setRecordingState(isRecording, startTime = null) {
-        this.recordingStartTime = isRecording ? startTime : null;
+        this.#recordingStartTime = isRecording ? startTime : null;
         if (isRecording) {
             this.eventLog = ['[00:00:00] -- 録画開始 --'];
-            console.log(`録画開始: ${recordingStartTime}`);
+            console.log(`録画開始: ${this.#recordingStartTime}`);
         } else {
-            if (recordingStartTime) {
-                const elapsedTime = formatElapsedTime(new Date() - recordingStartTime);
-                eventLog.push(`[${elapsedTime}] -- 録画停止 --`);
+            if (this.#recordingStartTime) {
+                const elapsedTime = formatElapsedTime(new Date() - this.#recordingStartTime);
+                this.eventLog.push(`[${elapsedTime}] -- 録画停止 --`);
                 console.log(`録画停止: ${elapsedTime}`);
             }
-            recordingStartTime = null;
+            this.#recordingStartTime = null;
         }
         this.#broadcastLogCallback(this.eventLog);
     }
@@ -144,15 +143,14 @@ export class JournalProcessor {
      * @param {object} statusData - Status.jsonから読み込んだJSONオブジェクト
      */
     #processStatus(statusData) {
-        if (!statusData || !recordingStartTime) return; // 録画中でなければ何もしない
+        if (!statusData || !this.#recordingStartTime) return; // 録画中でなければ何もしない
 
         const now = new Date();
 
         // 1. ハードポイントの状態をチェック (戦闘開始/終了)
         const isHardpointsDeployed = (statusData.Flags & (1 << 6)) !== 0;
         if (isHardpointsDeployed !== this.#wasHardpointsDeployed) {
-            this.#isFighting = isHardpointsDeployed;
-            const elapsedTime = formatElapsedTime(now - recordingStartTime);
+            const elapsedTime = formatElapsedTime(now - this.#recordingStartTime);
             const logMessage = isHardpointsDeployed ? '-- 戦闘開始 --' : '-- 戦闘終了 --';
             this.eventLog.push(`[${elapsedTime}] ${logMessage}`);
             this.#broadcastLogCallback(this.eventLog);
@@ -162,7 +160,7 @@ export class JournalProcessor {
         // 2. ランディングギアの状態をチェック (着陸開始/中断)
         const isLandingGearDown = (statusData.Flags & (1 << 2)) !== 0;
         if (isLandingGearDown !== this.#wasLandingGearDown) {
-            const elapsedTime = formatElapsedTime(now - recordingStartTime);
+            const elapsedTime = formatElapsedTime(now - this.#recordingStartTime);
             // ギアが展開され、初回離陸が完了している場合
             if (isLandingGearDown && !this.#isLandingSequence && this.#isInitialTakeoffComplete) {
                 this.#isLandingSequence = true;
@@ -170,9 +168,9 @@ export class JournalProcessor {
                 this.#broadcastLogCallback(this.eventLog);
             }
             // ギアが格納され、着陸シーケンス中だった場合
-            else if (!isLandingGearDown && isLandingSequence) {
-                isLandingSequence = false;
-                eventLog.push(`[${elapsedTime}] -- 着陸中断 --`);
+            else if (!isLandingGearDown && this.#isLandingSequence) {
+                this.#isLandingSequence = false;
+                this.eventLog.push(`[${elapsedTime}] -- 着陸中断 --`);
                 this.#broadcastLogCallback(this.eventLog);
             }
             this.#wasLandingGearDown = isLandingGearDown;
@@ -205,21 +203,21 @@ export class JournalProcessor {
             }
 
             // --- 録画中のイベントログ記録 ---
-            if (this.recordingStartTime) {
-                const elapsedTime = formatElapsedTime(new Date() - this.recordingStartTime);
+            if (this.#recordingStartTime) {
+                const elapsedTime = formatElapsedTime(new Date() - this.#recordingStartTime);
                 let logMessage = '';
                 let isMinorEvent = false;
 
                 switch (entry.event) {
                     case 'Bounty':
-                        if (this.#isFighting) isMinorEvent = true;
+                        isMinorEvent = true;
                         logMessage = `撃破: ${entry.Target_Localised || entry.Target}`;
                         break;
                     case 'FSDJump':
                         logMessage = `ジャンプ: ${entry.StarSystem} へ`;
                         break;
                     case 'DockingGranted':
-                        if (!isLandingSequence) {
+                        if (!this.#isLandingSequence) {
                             this.#isLandingSequence = true;
                             logMessage = '-- 着陸開始 --';
                         }
@@ -245,7 +243,7 @@ export class JournalProcessor {
 
                 if (logMessage) {
                     const prefix = isMinorEvent ? '* ' : '';
-                    eventLog.push(`${prefix}[${elapsedTime}] ${logMessage}`);
+                    this.eventLog.push(`${prefix}[${elapsedTime}] ${logMessage}`);
                     this.#broadcastLogCallback(this.eventLog);
                 }
             }
@@ -285,7 +283,7 @@ export class JournalProcessor {
                     if (typeof rank === 'number') rankName = COMBAT_RANKS[rank] || 'Unknown';
                     else if (typeof rank === 'string') rankName = rank;
                 }
-                state.bounty.ranks[rankName] = (state.bounty.ranks[rankName] || 0) + 1;
+                this.state.bounty.ranks[rankName] = (this.state.bounty.ranks[rankName] || 0) + 1;
             } else if (entry.event === 'MaterialCollected') {
                 const category = entry.Category;
                 const name = entry.Name_Localised || entry.Name;
@@ -347,6 +345,7 @@ export class JournalProcessor {
             }
         } catch (e) {
             // JSONパースエラーは無視
+            console.error(e);
         }
     }
 }

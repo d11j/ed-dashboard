@@ -90,8 +90,6 @@ deactivate Server
     - `Hardpoints Deployed` イベントにより **戦闘中** 状態へ移行する。
     - `Landing Gear Down` イベントにより **着陸シーケンス** 状態へ移行する。
     - `DockingGranted` イベントにより **着陸シーケンス** 状態へ移行する。
-- **戦闘中 (`InCombat`)**:
-    - `Hardpoints Retracted` イベントにより **飛行中** 状態へ戻る。
 - **着陸シーケンス(`LandingSequence`)**
     - `Landing Gear Up` イベントにより **飛行中** 状態へ移行する。
     - `DockingCancelled` イベントにより **飛行中** 状態へ移行する。
