@@ -149,7 +149,8 @@ export class JournalProcessor {
 
         // 1. ハードポイントの状態をチェック (戦闘開始/終了)
         const isHardpointsDeployed = (statusData.Flags & (1 << 6)) !== 0;
-        if (isHardpointsDeployed !== this.#wasHardpointsDeployed) {
+        const isInSupercruise = statusData.Flags & (1 << 4);
+        if (isHardpointsDeployed !== this.#wasHardpointsDeployed && !isInSupercruise) {
             const elapsedTime = formatElapsedTime(now - this.#recordingStartTime);
             const logMessage = isHardpointsDeployed ? '-- 戦闘開始 --' : '-- 戦闘終了 --';
             this.eventLog.push(`[${elapsedTime}] ${logMessage}`);
