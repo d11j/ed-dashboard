@@ -6,10 +6,16 @@
   "scripts": {
     "start": "node --env-file=.env server.js"
   },
+  "type": "module",
   "dependencies": {
     "chokidar": "^3.5.3",
     "express": "^4.18.2",
     "obs-websocket-js": "^5.0.6",
     "ws": "^8.13.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "eslint": "^9.32.0",
+    "globals": "^16.3.0"
   }
 }

@@ -53,8 +53,8 @@ copyLogButton.addEventListener('click', () => {
         // 3. 加工したテキストをクリップボードにコピー
         navigator.clipboard.writeText(chapterLog)
             .then(() => {
-                copyLogButton.textContent = 'コピーしました！';
-                setTimeout(() => { copyLogButton.textContent = 'ログをコピー'; }, 2000);
+                copyLogButton.textContent = 'Copied！';
+                setTimeout(() => { copyLogButton.textContent = 'Copy Log'; }, 2000);
             })
             .catch(err => console.error('コピーに失敗しました:', err));
     }
