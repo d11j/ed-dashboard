@@ -240,6 +240,10 @@ export class JournalProcessor {
                         this.#isLandingSequence = false;
                         this.#wasLandingGearDown = true;
                         break;
+                    case 'ShipyardSwap':
+                        const newShip = entry.ShipType_Localised || entry.ShipType || 'Unknown';
+                        logMessage = `乗り換え: ${newShip.charAt(0).toUpperCase() + newShip.slice(1)}`;
+                        break;
                 }
 
                 if (logMessage) {
