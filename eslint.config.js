@@ -1,17 +1,39 @@
-import js from "@eslint/js";
-import { defineConfig } from "eslint/config";
-import globals from "globals";
+import { defineConfig } from 'eslint/config';
+import globals from 'globals';
 
-export default defineConfig([
-  {
-    files: ["**/*.{js,mjs,cjs}"],
-    plugins: { js },
-    extends: ["js/recommended"],
+const commonRules = {
+    'no-unused-vars': 'warn',
+    'indent': ['error', 4, { 'SwitchCase': 1 }],
+    'quotes': ['error', 'single'],
+    'semi': ['error', 'always'],
+    'no-trailing-spaces': 'error',
+    'eol-last': 'error'
+};
+
+export default defineConfig([{
+    files: ['**/*.{js,mjs,cjs}'],
+    ignores: ['public/**'],
     languageOptions: {
-      globals: [...globals.browser, ...globals.node]
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        globals: {
+            ...globals.node,
+        }
     },
     rules: {
-      "no-unused-vars": "warn"
+        ...commonRules
     }
-  },
-]);
+},
+{
+    files: ['public/**/*.js'],
+    languageOptions: {
+        ecmaVersion: 2022,
+        sourceType: 'module',
+        globals: {
+            ...globals.browser,
+        }
+    },
+    rules: {
+        ...commonRules
+    }
+}]);

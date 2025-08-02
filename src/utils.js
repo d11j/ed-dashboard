@@ -1,4 +1,4 @@
-import { COMBAT_RANKS, CQC_RANKS, EMP_RANKS, EXOBIOLOGIST_RANKS, EXPLORE_RANKS, FED_RANKS, SOLDIER_RANKS, TRADE_RANKS } from "./constants.js";
+import { COMBAT_RANKS, CQC_RANKS, EMP_RANKS, EXOBIOLOGIST_RANKS, EXPLORE_RANKS, FED_RANKS, SOLDIER_RANKS, TRADE_RANKS } from './constants.js';
 
 // --- ヘルパー関数 ---
 /** 経過時間を HH:MM:SS 形式の文字列にフォーマットする */
@@ -11,7 +11,7 @@ export function formatElapsedTime(ms) {
 }
 
 /** 初期状態 */
-export function getInitialState() { 
+export function getInitialState() {
     return ({
         lastUpdateTimestamp: null,
         bounty: {
@@ -41,5 +41,5 @@ export function getInitialState() {
             Soldier: { rank: 0, name: SOLDIER_RANKS[0], progress: 0, nextName: SOLDIER_RANKS[1] },
             Exobiologist: { rank: 0, name: EXOBIOLOGIST_RANKS[0], progress: 0, nextName: EXOBIOLOGIST_RANKS[1] }
         }
-    })
+    });
 };

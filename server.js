@@ -34,7 +34,7 @@ const broadcastUpdate = (state) => {
             client.send(payload);
         }
     });
-}
+};
 
 // --- ExpressサーバーとWebSocketサーバーのセットアップ ---
 const app = express();
