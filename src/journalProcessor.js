@@ -143,38 +143,58 @@ export class JournalProcessor {
      * @param {object} statusData - Status.jsonから読み込んだJSONオブジェクト
      */
     #processStatus(statusData) {
-        if (!statusData || !this.#recordingStartTime) return; // 録画中でなければ何もしない
+        if (!statusData) return;
 
         const now = new Date();
+        const flags = statusData.Flags;
 
-        // 1. ハードポイントの状態をチェック (戦闘開始/終了)
-        const isHardpointsDeployed = (statusData.Flags & (1 << 6)) !== 0;
-        const isInSupercruise = statusData.Flags & (1 << 4);
-        if (isHardpointsDeployed !== this.#wasHardpointsDeployed && !isInSupercruise) {
+        // 現在の状態を取得
+        const isHardpointsDeployed = (flags & (1 << 6)) !== 0;
+        const isInSupercruise = (flags & (1 << 4)) !== 0;
+        const isLandingGearDown = (flags & (1 << 2)) !== 0;
+
+        // 変更点を検出
+        const hardpointsChanged = isHardpointsDeployed !== this.#wasHardpointsDeployed;
+        const landingGearChanged = isLandingGearDown !== this.#wasLandingGearDown;
+
+        // 着陸シーケンスの開始/中断条件を判定
+        const shouldStartLandingSequence = isLandingGearDown && !this.#isLandingSequence && this.#isInitialTakeoffComplete;
+        const shouldCancelLandingSequence = !isLandingGearDown && this.#isLandingSequence
+
+        // 録画中の場合はログを生成
+        if (this.#recordingStartTime) {
             const elapsedTime = formatElapsedTime(now - this.#recordingStartTime);
+
+            // ハードポイントの状態変化ログ
+            if (hardpointsChanged && !isInSupercruise) {
             const logMessage = isHardpointsDeployed ? '-- 戦闘開始 --' : '-- 戦闘終了 --';
             this.eventLog.push(`[${elapsedTime}] ${logMessage}`);
             this.#broadcastLogCallback(this.eventLog);
-            this.#wasHardpointsDeployed = isHardpointsDeployed;
+            }
+
+            // 着陸シーケンスのログ
+            if (landingGearChanged) {
+                if (shouldStartLandingSequence) {
+                    this.eventLog.push(`[${elapsedTime}] -- 着陸開始 --`);
+                    this.#broadcastLogCallback(this.eventLog);
+                } else if (shouldCancelLandingSequence) {
+                    this.eventLog.push(`[${elapsedTime}] -- 着陸中断 --`);
+                    this.#broadcastLogCallback(this.eventLog);
+                }
+            }
         }
 
-        // 2. ランディングギアの状態をチェック (着陸開始/中断)
-        const isLandingGearDown = (statusData.Flags & (1 << 2)) !== 0;
-        if (isLandingGearDown !== this.#wasLandingGearDown) {
-            const elapsedTime = formatElapsedTime(now - this.#recordingStartTime);
-            // ギアが展開され、初回離陸が完了している場合
-            if (isLandingGearDown && !this.#isLandingSequence && this.#isInitialTakeoffComplete) {
+        // 内部状態フラグを更新
+        this.#wasHardpointsDeployed = isHardpointsDeployed;
+        this.#wasLandingGearDown = isLandingGearDown;
+
+        // 着陸シーケンスの状態を更新
+        if (landingGearChanged) {
+            if (shouldStartLandingSequence) {
                 this.#isLandingSequence = true;
-                this.eventLog.push(`[${elapsedTime}] -- 着陸開始 --`);
-                this.#broadcastLogCallback(this.eventLog);
-            }
-            // ギアが格納され、着陸シーケンス中だった場合
-            else if (!isLandingGearDown && this.#isLandingSequence) {
+            } else if (shouldCancelLandingSequence) {
                 this.#isLandingSequence = false;
-                this.eventLog.push(`[${elapsedTime}] -- 着陸中断 --`);
-                this.#broadcastLogCallback(this.eventLog);
             }
-            this.#wasLandingGearDown = isLandingGearDown;
         }
     }
 
