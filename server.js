@@ -99,16 +99,16 @@ obs.on('ConnectionClosed', () => {
 });
 
 obs.on('RecordStateChanged', (data) => {
+    if(!data.outputPath) {
+        return;
+    }
     const isRecording = data.outputActive;
     const obsStatePayload = { type: 'obs_recording_state', payload: { isRecording } };
     wss.clients.forEach(client => client.send(JSON.stringify(obsStatePayload)));
     console.log(`RecordStateChanged: ${JSON.stringify(data)}`);
 
-    if (isRecording) {
-        journalProcessor.setRecordingState(true, new Date());
-    } else {
-        journalProcessor.setRecordingState(false);
-    }
+    journalProcessor.setRecordingState(isRecording, new Date());
+    console.debug(journalProcessor.eventLog);
 });
 
 function makePayload(state) {

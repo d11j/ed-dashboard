@@ -88,8 +88,8 @@ export class JournalProcessor {
      * (server.jsからOBSのイベントに応じて呼び出す)
      */
     setRecordingState(isRecording, startTime = null) {
-        this.#recordingStartTime = isRecording ? startTime : null;
         if (isRecording) {
+            this.#recordingStartTime = startTime;
             this.eventLog = ['[00:00:00] -- 録画開始 --'];
             console.log(`録画開始: ${this.#recordingStartTime}`);
         } else {
@@ -167,9 +167,9 @@ export class JournalProcessor {
 
             // ハードポイントの状態変化ログ
             if (hardpointsChanged && !isInSupercruise) {
-            const logMessage = isHardpointsDeployed ? '-- 戦闘開始 --' : '-- 戦闘終了 --';
-            this.eventLog.push(`[${elapsedTime}] ${logMessage}`);
-            this.#broadcastLogCallback(this.eventLog);
+                const logMessage = isHardpointsDeployed ? '-- 戦闘開始 --' : '-- 戦闘終了 --';
+                this.eventLog.push(`[${elapsedTime}] ${logMessage}`);
+                this.#broadcastLogCallback(this.eventLog);
             }
 
             // 着陸シーケンスのログ
