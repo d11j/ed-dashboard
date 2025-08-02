@@ -147,7 +147,7 @@ function updateUI(state) {
         highlightElement(bountyRewardsEl.parentElement);
     }
     bountyRewardsEl.textContent = state.bounty.totalRewards.toLocaleString();
-    
+
     updateKillsTable('bounty-ranks-table', state.bounty.ranks, previousState.bounty.ranks);
     updateGenericTable('bounty-targets-table', state.bounty.targets, previousState.bounty.targets, ['Target', 'Kills']);
 
@@ -358,7 +358,7 @@ function getRankIcon(rankName) {
     `;
     const extraParts = isElite ? ELITE_EMBLEM : '';
 
-    const rotationParts = Array.from({ length: rankLevel }, (_, i) => 
+    const rotationParts = Array.from({ length: rankLevel }, (_, i) =>
         `<use href="#${PART_ID}" transform="rotate(${i * 45}, 50, 50)" />`
     ).join('');
 
@@ -419,7 +419,7 @@ function updateProgressBars(containerId, newProgressData, oldProgressData) {
 
         const newProgress = data.progress || 0;
         progressBar.style.width = `${newProgress}%`;
-        
+
         progressText.textContent = `${Math.round(newProgress)}%`;
         progressItem.querySelector('.rank-progress-percent').textContent = '';
 

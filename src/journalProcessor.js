@@ -71,7 +71,7 @@ export class JournalProcessor {
             }
         };
 
-        console.log("ジャーナルファイルの初回スキャンと監視を開始します...");
+        console.log('ジャーナルファイルの初回スキャンと監視を開始します...');
 
         watcher
             .on('add', (filePath) => processIfNeeded(filePath, true)) // 初回スキャン中はブロードキャストしない
@@ -159,7 +159,7 @@ export class JournalProcessor {
 
         // 着陸シーケンスの開始/中断条件を判定
         const shouldStartLandingSequence = isLandingGearDown && !this.#isLandingSequence && this.#isInitialTakeoffComplete;
-        const shouldCancelLandingSequence = !isLandingGearDown && this.#isLandingSequence
+        const shouldCancelLandingSequence = !isLandingGearDown && this.#isLandingSequence;
 
         // 録画中の場合はログを生成
         if (this.#recordingStartTime) {
@@ -375,4 +375,4 @@ export class JournalProcessor {
     }
 }
 
-export default JournalProcessor
+export default JournalProcessor;

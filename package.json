@@ -4,7 +4,9 @@
   "description": "Real-time dashboard for Elite: Dangerous journal stats.",
   "main": "server.js",
   "scripts": {
-    "start": "node --env-file=.env server.js"
+    "start": "node --env-file=.env server.js",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix"
   },
   "type": "module",
   "dependencies": {
