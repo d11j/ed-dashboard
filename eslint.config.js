@@ -6,7 +6,8 @@ const commonRules = {
     'indent': ['error', 4, { 'SwitchCase': 1 }],
     'quotes': ['error', 'single'],
     'semi': ['error', 'always'],
-    'no-trailing-spaces': 'error'
+    'no-trailing-spaces': 'error',
+    'eol-last': 'error'
 };
 
 export default defineConfig([{
