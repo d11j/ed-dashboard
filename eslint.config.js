@@ -2,12 +2,13 @@ import { defineConfig } from 'eslint/config';
 import globals from 'globals';
 
 const commonRules = {
-    'no-unused-vars': 'warn',
+    'no-unused-vars': ['warn', { 'argsIgnorePattern': '^_' }],
     'indent': ['error', 4, { 'SwitchCase': 1 }],
     'quotes': ['error', 'single'],
     'semi': ['error', 'always'],
     'no-trailing-spaces': 'error',
-    'eol-last': 'error'
+    'eol-last': 'error',
+    'curly': ['error', 'all'],
 };
 
 export default defineConfig([{

@@ -17,7 +17,7 @@
   - ジャーナルエントリと Status.json をパースし、アプリケーションの状態を更新。
   - 内部的な状態フラグ（例：戦闘状態、着陸シーケンス）の管理。
   - 注入されたコールバック関数を介した、server.js への状態変更の通知。
-- src/constants.js: アプリケーション全体で利用される定数をエクスポートするモジュールとなる。これには以下が含まれる。
+- `src/constants.js`: アプリケーション全体で利用される定数をエクスポートするモジュールとなる。これには以下が含まれる。
   - PORT などのサーバー設定。
   - パイロットのランク定義（FED_RANKS, COMBAT_RANKS など）といった静的なゲームデータ。
 - `public/`: クライアントサイドのすべての静的アセットを格納するディレクトリ。
@@ -32,7 +32,7 @@
 ### ジャーナルファイル変更シーケンス
 
 ジャーナルファイルの変更がUIにリアルタイム更新される流れを以下のシーケンス図に示す。
-
+#processJournalLine は、イベントの種類に応じて #eventHandlers マップから適切な状態更新メソッドを呼び出す。同時に、ロギングメソッド #logEvent を呼び出し、イベントログに記録すべきかどうかの判断を委譲するディスパッチャとして機能する。
 ```plantuml
 @startuml
 !theme plain
@@ -44,14 +44,30 @@ participant "JournalProcessor.js" as Processor
 
 Processor -> Processor: onFileChange()
 activate Processor
-Processor -> Processor: _processFile()
-Processor -> Processor: _processJournalLine()
-note right: stateは内部で更新される
-Processor ->> Server: broadcastUpdateCallback(state)
-activate Server
-Server -> Server: makePayload(state)
-Server -> Client: broadcast(full_update)
-deactivate Server
+Processor -> Processor: #processFile()
+Processor -> Processor: #processJournalLine(line)
+
+group 状態更新処理
+    Processor -> Processor: #eventHandlers[event].call()
+    note right of Processor: イベントに応じた #handle...() を実行し、\nstateを更新する
+    Processor ->> Server: broadcastUpdateCallback(state)
+    activate Server
+    Server -> Server: makePayload(state)
+    Server -> Client: broadcast(full_update)
+    deactivate Server
+end
+
+group イベントログ記録処理
+    Processor -> Processor: #logEvent(entry)
+    note right of Processor: ログ記録対象のイベントか\n内部のswitchで判断する
+    alt ログ対象イベントの場合
+        Processor ->> Server: broadcastLogCallback(eventLog)
+        activate Server
+        Server -> Client: broadcast(log_update)
+        deactivate Server
+    end
+end
+
 deactivate Processor
 @enduml
 ```
@@ -90,6 +106,8 @@ deactivate Server
     - `Hardpoints Deployed` イベントにより **戦闘中** 状態へ移行する。
     - `Landing Gear Down` イベントにより **着陸シーケンス** 状態へ移行する。
     - `DockingGranted` イベントにより **着陸シーケンス** 状態へ移行する。
+- **戦闘中**
+    - `Hardpoint Retracted` イベントにより **飛行中** 状態へ移行する。
 - **着陸シーケンス(`LandingSequence`)**
     - `Landing Gear Up` イベントにより **飛行中** 状態へ移行する。
     - `DockingCancelled` イベントにより **飛行中** 状態へ移行する。

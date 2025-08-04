@@ -21,13 +21,42 @@ export class JournalProcessor {
 
     #broadcastUpdateCallback;
     #broadcastLogCallback;
+    #eventHandlers;
 
     constructor(initialState, broadcastUpdateCallback, broadcastLogCallback) {
         this.state = initialState;
         this.#broadcastUpdateCallback = broadcastUpdateCallback;
         this.#broadcastLogCallback = broadcastLogCallback;
+
+        // --- イベントハンドラマップ ---
+        this.#eventHandlers = {
+            'LoadGame': this.#handleLoadGame,
+            'Undocked': this.#handleTakeoff,
+            'Liftoff': this.#handleTakeoff,
+            'Bounty': this.#handleBounty,
+            'FSDJump': this.#handleLocationChange,
+            'Location': this.#handleLocationChange,
+            'DockingGranted': this.#handleDockingGranted,
+            'DockingCancelled': this.#handleDockingCancelled,
+            'Docked': this.#handleDockingComplete,
+            'Touchdown': this.#handleDockingComplete,
+            'ShipTargeted': this.#handleShipTargeted,
+            'MaterialCollected': this.#handleMaterialCollected,
+            'FactionKillBond': this.#handleFactionKillBond,
+            'MissionAccepted': this.#handleMissionAccepted,
+            'MissionCompleted': this.#handleMissionCompleted,
+            'MissionFailed': this.#handleMissionAbandonedOrFailed,
+            'MissionAbandoned': this.#handleMissionAbandonedOrFailed,
+            'Progress': this.#handleProgress,
+            'Rank': this.#handleRank,
+            'Promotion': this.#handleRank
+        };
     }
 
+    /**
+     * ジャーナルディレクトリを監視し、ファイルの追加や変更を検知して処理を行う
+     * 監視開始時に既存のジャーナルファイルも処理する
+     */
     startMonitoring() {
         console.log(`ジャーナルディレクトリを監視中: ${JOURNAL_DIR}`);
         const watcher = chokidar.watch(JOURNAL_DIR, {
@@ -46,7 +75,10 @@ export class JournalProcessor {
 
         statusWatcher.on('change', (filePath) => {
             fs.readFile(filePath, 'utf-8', (err, data) => {
-                if (err) return;
+                if (err) {
+                    return;
+                }
+
                 try {
                     const statusData = JSON.parse(data);
                     this.#processStatus(statusData);
@@ -84,8 +116,9 @@ export class JournalProcessor {
     }
 
     /**
-     * 録画状態を変更する
-     * (server.jsからOBSのイベントに応じて呼び出す)
+     * 録画状態を変更する (server.jsからOBSのイベントに応じて呼び出す)
+     * @param {boolean} isRecording - 録画中であるか
+     * @param {Date | null} startTime - 録画開始時刻
      */
     setRecordingState(isRecording, startTime = null) {
         if (isRecording) {
@@ -105,6 +138,7 @@ export class JournalProcessor {
 
     /**
      * 統計情報をリセットする
+     * @param {object} initialState - 初期状態オブジェクト
      */
     resetState(initialState) {
         this.state = initialState;
@@ -113,8 +147,8 @@ export class JournalProcessor {
 
     /**
      * ファイルを読み込み、ジャーナルエントリを処理する
-     * @param {string} filePath 処理するファイルのパス
-     * @param {boolean} suppressBroadcast trueの場合、処理後のブロードキャストを抑制する
+     * @param {string} filePath - 処理するファイルのパス
+     * @param {boolean} suppressBroadcast - trueの場合、処理後のブロードキャストを抑制する
      */
     async #processFile(filePath, suppressBroadcast = false) {
         const start = this.#processedFiles[filePath] || 0;
@@ -126,7 +160,9 @@ export class JournalProcessor {
             return;
         }
         const end = stats.size;
-        if (start >= end) return;
+        if (start >= end) {
+            return;
+        }
         const stream = fs.createReadStream(filePath, { encoding: 'utf-8', start });
         const rl = createInterface({ input: stream, crlfDelay: Infinity });
         for await (const line of rl) {
@@ -143,7 +179,9 @@ export class JournalProcessor {
      * @param {object} statusData - Status.jsonから読み込んだJSONオブジェクト
      */
     #processStatus(statusData) {
-        if (!statusData) return;
+        if (!statusData) {
+            return;
+        }
 
         const now = new Date();
         const flags = statusData.Flags;
@@ -198,180 +236,294 @@ export class JournalProcessor {
         }
     }
 
-    // --- ジャーナル処理ロジック ---
+    /**
+     * ジャーナル行をパースし、イベントハンドラマップを介して適切な処理メソッドに振り分ける
+     * @param {string} line - ジャーナルファイルから読み込んだ単一の行
+     */
     #processJournalLine(line) {
         try {
-            if (line.trim() === '') return;
+            if (line.trim() === '') {
+                return;
+            }
             const entry = JSON.parse(line);
 
             if (entry.timestamp) {
                 this.state.lastUpdateTimestamp = entry.timestamp;
             }
 
-            // --- ▼▼▼ 状態フラグ管理ロジック ▼▼▼ ---
-            if (entry.event === 'LoadGame') {
-                if (entry.Docked || entry.StartLanded) {
-                    this.#isInitialTakeoffComplete = false;
-                    this.#wasLandingGearDown = true;
-                } else {
-                    this.#isInitialTakeoffComplete = true;
-                    this.#wasLandingGearDown = false;
-                }
-            } else if (entry.event === 'Undocked' || entry.event === 'Liftoff') {
-                if (!this.#isInitialTakeoffComplete) {
-                    this.#isInitialTakeoffComplete = true;
-                }
+            // イベントハンドラを呼び出す
+            const handler = this.#eventHandlers[entry.event];
+            if (handler) {
+                handler.call(this, entry);
             }
-
-            // --- 録画中のイベントログ記録 ---
-            if (this.#recordingStartTime) {
-                const elapsedTime = formatElapsedTime(new Date() - this.#recordingStartTime);
-                let logMessage = '';
-                let isMinorEvent = false;
-
-                switch (entry.event) {
-                    case 'Bounty':
-                        isMinorEvent = true;
-                        logMessage = `撃破: ${entry.Target_Localised || entry.Target}`;
-                        break;
-                    case 'FSDJump':
-                        logMessage = `ジャンプ: ${entry.StarSystem} へ`;
-                        break;
-                    case 'DockingGranted':
-                        if (!this.#isLandingSequence) {
-                            this.#isLandingSequence = true;
-                            logMessage = '-- 着陸開始 --';
-                        }
-                        break;
-                    case 'DockingCancelled':
-                        if (this.#isLandingSequence) {
-                            this.#isLandingSequence = false;
-                            logMessage = '-- 着陸キャンセル --';
-                        }
-                        break;
-                    case 'Docked':
-                    case 'Touchdown':
-                        if (this.#isLandingSequence) this.#isLandingSequence = false;
-                        logMessage = entry.event === 'Docked' ? `着艦: ${entry.StationName}` : `着陸: ${entry.Body}`;
-                        break;
-                    case 'Undocked':
-                    case 'Liftoff':
-                        logMessage = entry.event === 'Undocked' ? `離艦: ${entry.StationName}` : `離陸: ${entry.Body}`;
-                        this.#isLandingSequence = false;
-                        this.#wasLandingGearDown = true;
-                        break;
-                    case 'ShipyardSwap':
-                        const newShip = entry.ShipType_Localised || entry.ShipType || 'Unknown';
-                        logMessage = `乗り換え: ${newShip.charAt(0).toUpperCase() + newShip.slice(1)}`;
-                        break;
-                }
-
-                if (logMessage) {
-                    const prefix = isMinorEvent ? '* ' : '';
-                    this.eventLog.push(`${prefix}[${elapsedTime}] ${logMessage}`);
-                    this.#broadcastLogCallback(this.eventLog);
-                }
-            }
-
-            // --- 統計情報処理 ---
-            if (entry.event === 'FSDJump' || entry.event === 'Location') {
-                this.#factionAllegianceMap = {}; // 現在の星系の派閥情報に更新
-                if (entry.Factions && Array.isArray(entry.Factions)) {
-                    entry.Factions.forEach(faction => {
-                        if (faction.Name && faction.Allegiance) {
-                            this.#factionAllegianceMap[faction.Name] = faction.Allegiance;
-                        }
-                    });
-                }
-            } else if (entry.event === 'ShipTargeted' && entry.TargetLocked === true) {
-                const pilotName = entry.PilotName_Localised || entry.PilotName;
-                if (pilotName && typeof entry.PilotRank !== 'undefined') {
-                    this.#pilotRanks[pilotName] = entry.PilotRank;
-                }
-            } else if (entry.event === 'Bounty') {
-                this.state.bounty.count++;
-                let reward = 0;
-                if (entry.Rewards && Array.isArray(entry.Rewards)) {
-                    entry.Rewards.forEach(r => { reward += r.Reward; });
-                    this.state.bounty.totalRewards += reward;
-                }
-                if (entry.Target_Localised) {
-                    this.state.bounty.targets[entry.Target_Localised] = (this.state.bounty.targets[entry.Target_Localised] || 0) + 1;
-                } else {
-                    const shipName = entry.Target.charAt(0).toUpperCase() + entry.Target.slice(1);
-                    this.state.bounty.targets[shipName] = (this.state.bounty.targets[shipName] || 0) + 1;
-                }
-                const pilotName = entry.PilotName_Localised || entry.PilotName;
-                let rankName = 'Unknown';
-                if (pilotName && typeof this.#pilotRanks[pilotName] !== 'undefined') {
-                    const rank = this.#pilotRanks[pilotName];
-                    if (typeof rank === 'number') rankName = COMBAT_RANKS[rank] || 'Unknown';
-                    else if (typeof rank === 'string') rankName = rank;
-                }
-                this.state.bounty.ranks[rankName] = (this.state.bounty.ranks[rankName] || 0) + 1;
-            } else if (entry.event === 'MaterialCollected') {
-                const category = entry.Category;
-                const name = entry.Name_Localised || entry.Name;
-                const count = entry.Count;
-                if (!category || !name) return;
-                this.state.materials.total += count;
-                this.state.materials.categories[category] = (this.state.materials.categories[category] || 0) + count;
-                if (!this.state.materials.details[category]) this.state.materials.details[category] = {};
-                this.state.materials.details[category][name] = (this.state.materials.details[category][name] || 0) + count;
-            } else if (entry.event === 'FactionKillBond') {
-                this.state.bounty.count++;
-                this.state.bounty.totalRewards += entry.Reward;
-            } else if (entry.event === 'MissionAccepted') {
-                const factionName = entry.Faction;
-                const allegiance = this.#factionAllegianceMap[factionName];
-                if (entry.MissionID && allegiance) {
-                    if (allegiance === 'Federation' || allegiance === 'Empire') {
-                        this.#activeMissions[entry.MissionID] = allegiance;
-                    }
-                }
-            } else if (entry.event === 'MissionCompleted') {
-                const missionID = entry.MissionID;
-                const allegiance = this.#activeMissions[missionID];
-                this.state.missions.completed++;
-                if (allegiance === 'Federation') {
-                    this.state.missions.federation++;
-                } else if (allegiance === 'Empire') {
-                    this.state.missions.empire++;
-                } else {
-                    this.state.missions.independent++;
-                }
-                if (allegiance) {
-                    delete this.#activeMissions[missionID];
-                }
-            } else if (entry.event === 'MissionFailed' || entry.event === 'MissionAbandoned') {
-                if (this.#activeMissions[entry.MissionID]) {
-                    delete this.#activeMissions[entry.MissionID];
-                }
-            } else if (entry.event === 'Progress') {
-                Object.keys(ALL_RANKS).forEach(rankType => {
-                    if (this.state.progress[rankType] && typeof entry[rankType] !== 'undefined') {
-                        this.state.progress[rankType].progress = entry[rankType];
-                    }
-                });
-            } else if (entry.event === 'Rank' || entry.event === 'Promotion') {
-                const ranks = entry;
-                Object.keys(ALL_RANKS).forEach(rankType => {
-                    if (this.state.progress[rankType] && typeof ranks[rankType] !== 'undefined') {
-                        const rankValue = ranks[rankType];
-                        const rankList = ALL_RANKS[rankType];
-                        this.state.progress[rankType].rank = rankValue;
-                        this.state.progress[rankType].name = rankList[rankValue] || 'Unknown';
-                        this.state.progress[rankType].nextName = rankList[rankValue + 1] || '';
-                        if (entry.event === 'Promotion') {
-                            this.state.progress[rankType].progress = 0;
-                        }
-                    }
-                });
-            }
+            this.#logEvent(entry);
         } catch (e) {
-            // JSONパースエラーは無視
             console.error(e);
         }
+    }
+
+    /**
+     * 録画中に特定のイベントが発生した場合、タイムスタンプ付きのログを生成する
+     * @param {object} entry - ジャーナルエントリ
+     * @param {boolean} [isMinorEvent=false] - 重要度が低いイベント（ログ上では `*` を付ける）か
+     */
+    #logEvent(entry, isMinorEvent = false) {
+        if (!this.#recordingStartTime) {
+            return;
+        }
+
+        const elapsedTime = formatElapsedTime(new Date() - this.#recordingStartTime);
+        let logMessage = '';
+
+        switch (entry.event) {
+            case 'Bounty':
+                isMinorEvent = true;
+                logMessage = `撃破: ${entry.Target_Localised || entry.Target}`;
+                break;
+            case 'FSDJump':
+                logMessage = `ジャンプ: ${entry.StarSystem} へ`;
+                break;
+            case 'DockingGranted':
+                logMessage = '-- 着陸開始 --';
+                break;
+            case 'DockingCancelled':
+                logMessage = '-- 着陸キャンセル --';
+                break;
+            case 'Docked':
+                logMessage = `着艦: ${entry.StationName}`;
+                break;
+            case 'Touchdown':
+                logMessage = `着陸: ${entry.Body}`;
+                break;
+            case 'Undocked':
+                logMessage = `離艦: ${entry.StationName}`;
+                break;
+            case 'Liftoff':
+                logMessage = `離陸: ${entry.Body}`;
+                break;
+            case 'ShipyardSwap':
+                const newShip = entry.ShipType_Localised || entry.ShipType || 'Unknown';
+                logMessage = `乗り換え: ${newShip.charAt(0).toUpperCase() + newShip.slice(1)}`;
+                break;
+        }
+
+        if (logMessage) {
+            const prefix = isMinorEvent ? '* ' : '';
+            this.eventLog.push(`${prefix}[${elapsedTime}] ${logMessage}`);
+            this.#broadcastLogCallback(this.eventLog);
+        }
+    }
+
+    // --- イベント別ハンドラメソッド ---
+
+    /**
+     * LoadGameイベントを処理し、ゲーム開始時の状態（着艦中か否か）をセットする
+     * @param {object} entry - LoadGameイベントのジャーナルエントリ
+     */
+    #handleLoadGame(entry) {
+        if (entry.Docked || entry.StartLanded) {
+            this.#isInitialTakeoffComplete = false;
+            this.#wasLandingGearDown = true;
+        } else {
+            this.#isInitialTakeoffComplete = true;
+            this.#wasLandingGearDown = false;
+        }
+    }
+
+    /**
+     * UndockedまたはLiftoffイベントを処理し、離陸/離艦状態を管理する
+     * @param {object} _entry - Undocked/Liftoffイベントのジャーナルエントリ
+     */
+    #handleTakeoff(_entry) {
+        if (!this.#isInitialTakeoffComplete) {
+            this.#isInitialTakeoffComplete = true;
+        }
+        this.#isLandingSequence = false;
+        this.#wasLandingGearDown = true;
+    }
+
+    /**
+     * FSDJumpまたはLocationイベントを処理し、星系の派閥情報を更新する
+     * @param {object} entry - FSDJump/Locationイベントのジャーナルエントリ
+     */
+    #handleLocationChange(entry) {
+        this.#factionAllegianceMap = {};
+        if (entry.Factions && Array.isArray(entry.Factions)) {
+            entry.Factions.forEach(faction => {
+                if (faction.Name && faction.Allegiance) {
+                    this.#factionAllegianceMap[faction.Name] = faction.Allegiance;
+                }
+            });
+        }
+    }
+
+    /**
+     * DockingGrantedイベントを処理し、着陸シーケンスの開始を記録する
+     * @param {object} _entry - DockingGrantedイベントのジャーナルエントリ
+     */
+    #handleDockingGranted(_entry) {
+        if (!this.#isLandingSequence) {
+            this.#isLandingSequence = true;
+        }
+    }
+
+    /**
+     * DockingCancelledイベントを処理し、着陸シーケンスの中断を記録する
+     * @param {object} _entry - DockingCancelledイベントのジャーナルエントリ
+     */
+    #handleDockingCancelled(_entry) {
+        if (this.#isLandingSequence) {
+            this.#isLandingSequence = false;
+        }
+    }
+
+    /**
+     * DockedまたはTouchdownイベントを処理し、着陸/着艦の完了を記録する
+     * @param {object} _entry - Docked/Touchdownイベントのジャーナルエントリ
+     */
+    #handleDockingComplete(_entry) {
+        if (this.#isLandingSequence) {
+            this.#isLandingSequence = false;
+        }
+    }
+
+    /**
+     * ShipTargetedイベントを処理し、ターゲットのパイロットランクを一時的に保持する
+     * @param {object} entry - ShipTargetedイベントのジャーナルエントリ
+     */
+    #handleShipTargeted(entry) {
+        if (entry.TargetLocked === true) {
+            const pilotName = entry.PilotName_Localised || entry.PilotName;
+            if (pilotName && typeof entry.PilotRank !== 'undefined') {
+                this.#pilotRanks[pilotName] = entry.PilotRank;
+            }
+        }
+    }
+
+    /**
+     * Bountyイベントを処理し、賞金首の撃破情報を集計する
+     * @param {object} entry - Bountyイベントのジャーナルエントリ
+     */
+    #handleBounty(entry) {
+        this.state.bounty.count++;
+        let reward = 0;
+        if (entry.Rewards && Array.isArray(entry.Rewards)) {
+            entry.Rewards.forEach(r => { reward += r.Reward; });
+            this.state.bounty.totalRewards += reward;
+        }
+        const targetName = entry.Target_Localised || (entry.Target.charAt(0).toUpperCase() + entry.Target.slice(1));
+        this.state.bounty.targets[targetName] = (this.state.bounty.targets[targetName] || 0) + 1;
+
+        const pilotName = entry.PilotName_Localised || entry.PilotName;
+        let rankName = 'Unknown';
+        if (pilotName && typeof this.#pilotRanks[pilotName] !== 'undefined') {
+            const rank = this.#pilotRanks[pilotName];
+            rankName = (typeof rank === 'number') ? COMBAT_RANKS[rank] || 'Unknown' : rank;
+        }
+        this.state.bounty.ranks[rankName] = (this.state.bounty.ranks[rankName] || 0) + 1;
+    }
+
+    /**
+     * MaterialCollectedイベントを処理し、収集したマテリアル情報を集計する
+     * @param {object} entry - MaterialCollectedイベントのジャーナルエントリ
+     */
+    #handleMaterialCollected(entry) {
+        const { Category: category, Name_Localised, Name: name, Count: count } = entry;
+        if (!category || !name) {
+            return;
+        }
+        this.state.materials.total += count;
+        this.state.materials.categories[category] = (this.state.materials.categories[category] || 0) + count;
+        if (!this.state.materials.details[category]) {
+            this.state.materials.details[category] = {};
+        }
+        this.state.materials.details[category][Name_Localised || name] = (this.state.materials.details[category][Name_Localised || name] || 0) + count;
+    }
+
+    /**
+     * FactionKillBondイベントを処理し、CZでの撃破報酬を集計する
+     * @param {object} entry - FactionKillBondイベントのジャーナルエントリ
+     */
+    #handleFactionKillBond(entry) {
+        this.state.bounty.count++;
+        this.state.bounty.totalRewards += entry.Reward;
+    }
+
+    /**
+     * MissionAcceptedイベントを処理し、連邦/帝国ミッションを追跡対象に追加する
+     * @param {object} entry - MissionAcceptedイベントのジャーナルエントリ
+     */
+    #handleMissionAccepted(entry) {
+        const allegiance = this.#factionAllegianceMap[entry.Faction];
+        if (entry.MissionID && allegiance) {
+            if (allegiance === 'Federation' || allegiance === 'Empire') {
+                this.#activeMissions[entry.MissionID] = allegiance;
+            }
+        }
+    }
+
+    /**
+     * MissionCompletedイベントを処理し、ミッション完了数を集計する
+     * @param {object} entry - MissionCompletedイベントのジャーナルエントリ
+     */
+    #handleMissionCompleted(entry) {
+        const { MissionID } = entry;
+        const allegiance = this.#activeMissions[MissionID];
+        this.state.missions.completed++;
+        if (allegiance === 'Federation') {
+            this.state.missions.federation++;
+        } else if (allegiance === 'Empire') {
+            this.state.missions.empire++;
+        } else {
+            this.state.missions.independent++;
+        }
+        if (allegiance) {
+            delete this.#activeMissions[MissionID];
+        }
+    }
+
+    /**
+     * MissionAbandoned/MissionFailedイベントを処理し、追跡対象からミッションを削除する
+     * @param {object} entry - MissionAbandoned/MissionFailedイベントのジャーナルエントリ
+     */
+    #handleMissionAbandonedOrFailed(entry) {
+        if (this.#activeMissions[entry.MissionID]) {
+            delete this.#activeMissions[entry.MissionID];
+        }
+    }
+
+    /**
+     * Progressイベントを処理し、各ランクの進行度(%)を更新する
+     * @param {object} entry - Progressイベントのジャーナルエントリ
+     */
+    #handleProgress(entry) {
+        Object.keys(ALL_RANKS).forEach(rankType => {
+            if (this.state.progress[rankType] && typeof entry[rankType] !== 'undefined') {
+                this.state.progress[rankType].progress = entry[rankType];
+            }
+        });
+    }
+
+    /**
+     * Rank/Promotionイベントを処理し、各ランクの階級情報を更新する
+     * @param {object} entry - Rank/Promotionイベントのジャーナルエントリ
+     */
+    #handleRank(entry) {
+        Object.keys(ALL_RANKS).forEach(rankType => {
+            if (this.state.progress[rankType] && typeof entry[rankType] !== 'undefined') {
+                const rankValue = entry[rankType];
+                const rankList = ALL_RANKS[rankType];
+                const progressState = this.state.progress[rankType];
+
+                progressState.rank = rankValue;
+                progressState.name = rankList[rankValue] || 'Unknown';
+                progressState.nextName = rankList[rankValue + 1] || '';
+
+                if (entry.event === 'Promotion') {
+                    progressState.progress = 0;
+                }
+            }
+        });
     }
 }
 
