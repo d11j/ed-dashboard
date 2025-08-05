@@ -82,32 +82,29 @@ export class JournalProcessor {
             const day = today.getDate().toString().padStart(2, '0');
             return `Journal.${year}-${month}-${day}`;
         };
-        const processIfNeeded = async (filePath, suppressBroadcast) => {
-            const filename = path.basename(filePath);
-            // 今日の日付のジャーナルログファイルのみを対象
-            if (filename.startsWith(getTodaysPrefix()) && filename.endsWith('.log')) {
-                // ★ 初回スキャン中（suppressBroadcast=true）の処理をPromiseとして配列に追加
-                if (suppressBroadcast) {
-                    if (!this.#isInitialLoaded) {
-                        initialProcessingPromises.push(this.#processFile(filePath, suppressBroadcast));
-                    } else {
-                        this.#processFile(filePath, suppressBroadcast);
-                    }
-                } else {
-                    this.#processFile(filePath, suppressBroadcast);
-                }
-            }
-        };
 
         console.log('ジャーナルファイルの初回スキャンと監視を開始します...');
 
         watcher
             .on('add', (filePath) => {
-                // 'add'イベントは初回スキャン時にのみ発生すると想定
-                processIfNeeded(filePath, true);
+                const filename = path.basename(filePath);
+                if (filename.startsWith(getTodaysPrefix()) && filename.endsWith('.log')) {
+                    if (!this.#isInitialLoaded) {
+                        // 初回スキャン中: Promise配列に追加し、ブロードキャストは抑制
+                        initialProcessingPromises.push(this.#processFile(filePath, true));
+                    } else {
+                        // 運用中の新規ファイル追加: 即時処理し、ブロードキャストする
+                        this.#processFile(filePath, false);
+                    }
+                }
             })
-            .on('change', (filePath) => processIfNeeded(filePath, false)) // 変更時はブロードキャストする
-            .on('ready', async () => { // ★ readyイベントをasyncに変更
+            .on('change', (filePath) => {
+                const filename = path.basename(filePath);
+                if (filename.startsWith(getTodaysPrefix()) && filename.endsWith('.log')) {
+                    this.#processFile(filePath, false);
+                }
+            })
+            .on('ready', async () => {
                 console.log('初回スキャン完了。リアルタイム監視中...');
 
                 // ★ すべての初回ファイル処理が完了するのを待つ
@@ -414,7 +411,7 @@ export class JournalProcessor {
                     console.log('Status.jsonの監視を有効化します。');
                     this.#isInGame = true;
                     this.#sessionStartTimer = null; // タイマーIDをクリア
-                }, 1500); // 1.5秒の遅延
+                }, 1500);
             }
         }
     }
