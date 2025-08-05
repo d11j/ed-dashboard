@@ -17,6 +17,10 @@ export class JournalProcessor {
     #wasLandingGearDown = false; // ランディングギアの以前の状態
     #isInitialTakeoffComplete = false; // セッション開始後の初回離陸が完了したか
     #recordingStartTime = null; // 録画開始時刻
+    #isInGame = false; // ゲームのメインモードかどうか
+    #isLoading = false; // LoadGame～Locationの間trueになるフラグ
+    #isInitialLoaded = false; // 初回ロードが完了したかどうか
+    #sessionStartTimer = null;
     eventLog = []; // イベントログ
 
     #broadcastUpdateCallback;
@@ -31,6 +35,8 @@ export class JournalProcessor {
         // --- イベントハンドラマップ ---
         this.#eventHandlers = {
             'LoadGame': this.#handleLoadGame,
+            'Shutdown': this.#handleSessionEnd,
+            'Music': this.#handleMusic,
             'Undocked': this.#handleTakeoff,
             'Liftoff': this.#handleTakeoff,
             'Bounty': this.#handleBounty,
@@ -66,27 +72,8 @@ export class JournalProcessor {
             depth: 0 // サブディレクトリは監視しない
         });
 
-        const statusPath = path.join(JOURNAL_DIR, 'Status.json');
-        const statusWatcher = chokidar.watch(statusPath, {
-            persistent: true,
-            ignoreInitial: true,
-            awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 }
-        });
-
-        statusWatcher.on('change', (filePath) => {
-            fs.readFile(filePath, 'utf-8', (err, data) => {
-                if (err) {
-                    return;
-                }
-
-                try {
-                    const statusData = JSON.parse(data);
-                    this.#processStatus(statusData);
-                } catch (e) {
-                    // パースエラーは無視
-                }
-            });
-        });
+        // 初期読み込み完了のPromise
+        const initialProcessingPromises = [];
 
         const getTodaysPrefix = () => {
             const today = new Date();
@@ -99,17 +86,53 @@ export class JournalProcessor {
             const filename = path.basename(filePath);
             // 今日の日付のジャーナルログファイルのみを対象
             if (filename.startsWith(getTodaysPrefix()) && filename.endsWith('.log')) {
-                this.#processFile(filePath, suppressBroadcast);
+                // ★ 初回スキャン中（suppressBroadcast=true）の処理をPromiseとして配列に追加
+                if (suppressBroadcast) {
+                    if (!this.#isInitialLoaded) {
+                        initialProcessingPromises.push(this.#processFile(filePath, suppressBroadcast));
+                    } else {
+                        this.#processFile(filePath, suppressBroadcast);
+                    }
+                } else {
+                    this.#processFile(filePath, suppressBroadcast);
+                }
             }
         };
 
         console.log('ジャーナルファイルの初回スキャンと監視を開始します...');
 
         watcher
-            .on('add', (filePath) => processIfNeeded(filePath, true)) // 初回スキャン中はブロードキャストしない
+            .on('add', (filePath) => {
+                // 'add'イベントは初回スキャン時にのみ発生すると想定
+                processIfNeeded(filePath, true);
+            })
             .on('change', (filePath) => processIfNeeded(filePath, false)) // 変更時はブロードキャストする
-            .on('ready', () => {
+            .on('ready', async () => { // ★ readyイベントをasyncに変更
                 console.log('初回スキャン完了。リアルタイム監視中...');
+
+                // ★ すべての初回ファイル処理が完了するのを待つ
+                await Promise.all(initialProcessingPromises);
+                this.#isInitialLoaded = true;
+                console.log('すべてのジャーナル履歴の読み込みが完了しました。');
+
+                // --- Status.jsonの監視をここで開始 ---
+                const statusPath = path.join(JOURNAL_DIR, 'Status.json');
+                const statusWatcher = chokidar.watch(statusPath, {
+                    persistent: true,
+                    ignoreInitial: true,
+                    awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 }
+                });
+
+                statusWatcher.on('change', (filePath) => {
+                    if (!this.#isInGame) { return; }
+                    fs.readFile(filePath, 'utf-8', (err, data) => {
+                        if (err) { return; }
+                        try {
+                            const statusData = JSON.parse(data);
+                            this.#processStatus(statusData);
+                        } catch (e) { /* パースエラーは無視 */ }
+                    });
+                });
                 this.#broadcastUpdateCallback(this.state); // 初回スキャン完了後に一度だけブロードキャスト
             })
             .on('error', (error) => console.error(`ファイル監視エラー: ${error}`));
@@ -328,6 +351,31 @@ export class JournalProcessor {
             this.#isInitialTakeoffComplete = true;
             this.#wasLandingGearDown = false;
         }
+        this.#isLoading = true;
+    }
+
+    /** セッション終了時に呼び出され、監視を無効化する */
+    #handleSessionEnd() {
+        // 既に無効化されている場合は何もしない
+        if (!this.#isInGame) {
+            return;
+        }
+        console.log('セッションが終了しました。Status.jsonの監視を無効化します。');
+
+        if (this.#sessionStartTimer) {
+            clearTimeout(this.#sessionStartTimer);
+            this.#sessionStartTimer = null;
+        }
+
+        this.#isInGame = false;
+        this.#isLoading = false;
+    }
+
+    /** メインメニューに戻った際にセッションを終了とみなす */
+    #handleMusic(entry) {
+        if (entry.MusicTrack === 'MainMenu') {
+            this.#handleSessionEnd();
+        }
     }
 
     /**
@@ -354,6 +402,20 @@ export class JournalProcessor {
                     this.#factionAllegianceMap[faction.Name] = faction.Allegiance;
                 }
             });
+        }
+
+        // ロード後の最初のLocationイベントを検知
+        if (this.#isLoading) {
+            this.#isLoading = false; // ロード完了
+            // 既にタイマーがセットされていたら何もしない
+            if (!this.#sessionStartTimer) {
+                // 短い遅延を設けて、ゲームの状態が完全に安定するのを待つ
+                this.#sessionStartTimer = setTimeout(() => {
+                    console.log('Status.jsonの監視を有効化します。');
+                    this.#isInGame = true;
+                    this.#sessionStartTimer = null; // タイマーIDをクリア
+                }, 1500); // 1.5秒の遅延
+            }
         }
     }
 
