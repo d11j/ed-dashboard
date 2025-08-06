@@ -108,7 +108,6 @@ obs.on('RecordStateChanged', (data) => {
     console.log(`RecordStateChanged: ${JSON.stringify(data)}`);
 
     journalProcessor.setRecordingState(isRecording, new Date());
-    console.debug(journalProcessor.eventLog);
 });
 
 function makePayload(state) {
