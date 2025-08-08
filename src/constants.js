@@ -16,7 +16,17 @@ export const EXPLORE_RANKS = ['Aimless', 'Mostly Aimless', 'Scout', 'Surveyor', 
 export const CQC_RANKS = ['Helpless', 'Mostly Helpless', 'Amateur', 'Semi-Professional', 'Professional', 'Champion', 'Hero', 'Legend', 'Elite', 'Elite I', 'Elite II', 'Elite III', 'Elite IV', 'Elite V'];
 export const SOLDIER_RANKS = ['Defenceless', 'Mostly Defenceless', 'Rookie', 'Soldier', 'Gunslinger', 'Warrior', 'Gladiator', 'Deadeye', 'Elite', 'Elite I', 'Elite II', 'Elite III', 'Elite IV', 'Elite V'];
 export const EXOBIOLOGIST_RANKS = ['Directionless', 'Mostly Directionless', 'Compiler', 'Collector', 'Cataloguer', 'Taxonomist', 'Ecologist', 'Geneticist', 'Elite', 'Elite I', 'Elite II', 'Elite III', 'Elite IV', 'Elite V'];
-
+export const SCAN_VALUES = {
+    // Planets
+    'Earthlike body': 3000000,
+    'Water world(Terraformable)': 3000000,
+    'Ammonia world': 1600000,
+    'High metal content body(Terraformable)': 2000000,
+    'Water world': 1000000,
+    'Metalrich body': 500000,
+    'High metal content body': 300000,
+    'Rocky ice body': 1500000,
+};
 export const ALL_RANKS = {
     Combat: COMBAT_RANKS, Trade: TRADE_RANKS, Explore: EXPLORE_RANKS, Federation: FED_RANKS, Empire: EMP_RANKS,
     CQC: CQC_RANKS, Soldier: SOLDIER_RANKS, Exobiologist: EXOBIOLOGIST_RANKS

@@ -31,6 +31,12 @@ export function getInitialState() {
             empire: 0,
             independent: 0
         },
+        exploration: {
+            totalScans: 0,
+            highValueScans: 0, // 高価値スキャン数
+            firstToDiscover: 0, // 初発見数
+            estimatedValue: 0, // 推定探査収益
+        },
         progress: {
             Combat: { rank: 0, name: COMBAT_RANKS[0], progress: 0, nextName: COMBAT_RANKS[1] },
             Trade: { rank: 0, name: TRADE_RANKS[0], progress: 0, nextName: TRADE_RANKS[1] },
