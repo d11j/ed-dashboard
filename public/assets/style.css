@@ -1,4 +1,5 @@
 :root {
+    /* --- カラーパレット --- */
     --bg-color: #1a1a1a;
     --card-bg: #2c2c2c;
     --text-color: #e0e0e0;
@@ -6,6 +7,7 @@
     --border-color: #444;
     --progress-bar-bg: #ff9900;
 }
+/* --- 基本的なページスタイル --- */
 body {
     font-family: 'Orbitron', 'Consolas', monospace;
     background-color: var(--bg-color);
@@ -20,6 +22,7 @@ h1 {
     color: var(--header-color);
     margin-bottom: 20px;
 }
+/* --- タイムスタンプ --- */
 .timestamp {
     text-align: center;
     color: var(--text-color);
@@ -27,49 +30,59 @@ h1 {
     margin-top: -15px;
     margin-bottom: 20px;
 }
+/* --- レイアウト --- */
 .column-header {
     /* This container groups the main page header elements, which are intentionally placed in the left column. */
     /* Child elements are centered via their own styles (h1, .timestamp). */
 }
 .container {
+    /* メインコンテンツのフレックスコンテナ */
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 20px;
 }
 .column {
+    /* コンテンツを配置するカラム */
     display: flex;
     flex-direction: column;
     gap: 20px;
     flex: 0 0 500px; /* 固定幅500px */
 }
 .card {
+    /* 各セクションのコンテナカード */
+    display: flex;
     background-color: var(--card-bg);
     border-radius: 8px;
-    padding: 20px;
     border: 1px solid var(--border-color);
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
+/* --- サマリーセクション --- */
 .summary-grid {
+    /* サマリー情報をグリッド表示 */
     display: grid;
     gap: 10px;
     margin-bottom: 20px;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 .summary-item {
+    /* グリッド内の各サマリー項目 */
     font-size: 1.3em;
     background-color: #3a3a3a;
     padding: 10px;
     border-radius: 4px;
 }
 .summary-item .label {
+    /* サマリー項目のラベル (例: "Kills") */
     font-size: 0.9em;
     opacity: 0.8;
 }
 .summary-item .value {
+    /* サマリー項目の値 (例: "10") */
     font-size: 1.5em;
     font-weight: bold;
 }
+/* --- テーブルスタイル --- */
 table {
     width: 100%;
     border-collapse: collapse;
@@ -80,13 +93,17 @@ th, td {
     border-bottom: 1px solid var(--border-color);
 }
 th {
+    /* テーブルヘッダー */
     opacity: 0.8;
 }
 td:last-child {
+    /* テーブルの最終列（値など）を右寄せ */
     text-align: right;
     font-weight: bold;
 }
+/* --- 接続ステータス --- */
 .status {
+    /* 画面右上のステータス表示 */
     position: fixed;
     top: 10px;
     right: 10px;
@@ -95,17 +112,21 @@ td:last-child {
     font-size: 0.8em;
 }
 .status.connected {
+    /* 接続中のスタイル */
     background-color: #28a745;
     color: white;
 }
 .status.disconnected {
+    /* 切断中のスタイル */
     background-color: #dc3545;
     color: white;
 }
+/* --- 開閉可能セクション (トグル) --- */
 .toggle-section {
     margin-bottom: 10px;
 }
 .toggle-checkbox {
+    /* 開閉状態を管理する非表示チェックボックス */
     display: none;
 }
 .toggle-label {
@@ -117,6 +138,7 @@ td:last-child {
     display: block;
 }
 .toggle-label.h2 {
+    /* h2相当のトグルラベル */
     font-size: 1.5em;
     color: var(--header-color);
     margin-top: 0;
@@ -125,10 +147,12 @@ td:last-child {
     margin-bottom: 10px;
 }
 .toggle-label.h3 {
+    /* h3相当のトグルラベル */
     font-size: 1.17em;
     margin-top: 20px;
 }
 .toggle-label::before {
+    /* 開閉アイコン (▶) */
     content: '▶';
     position: absolute;
     left: 0;
@@ -136,15 +160,19 @@ td:last-child {
     transition: transform 0.2s ease-out;
 }
 .toggle-checkbox:checked + .toggle-label::before {
+    /* チェック時にアイコンを回転 */
     transform: rotate(90deg);
 }
 .toggle-content {
+    /* 開閉されるコンテンツエリア */
     display: none;
     padding-left: 20px;
 }
 .toggle-checkbox:checked ~ .toggle-content {
+    /* チェック時にコンテンツを表示 */
     display: block;
 }
+/* --- 操作ボタン --- */
 .controls {
     text-align: left;
     margin-bottom: 10px;
@@ -166,13 +194,16 @@ td:last-child {
 }
 /* --- Highlight Animation --- */
 @keyframes highlight-value-anim {
+    /* 値が更新された時のハイライトアニメーション */
     from { background-color: #ff9900; color: #1a1a1a; }
     to { background-color: transparent; }
 }
 .highlight-value {
+    /* 値のハイライトを適用するクラス */
     animation: highlight-value-anim 1.5s ease-out;
 }
 @keyframes highlight-row-anim {
+    /* テーブルの行が追加された時のハイライトアニメーション */
     from { background-color: rgba(40, 167, 69, 0.5); }
     to { background-color: transparent; }
 }
@@ -181,9 +212,11 @@ td:last-child {
 }
 /* --- Progress Bar Styles --- */
 .progress-item {
+    /* プログレスバーを含む各項目 */
     margin-bottom: 15px;
 }
 .progress-label {
+    /* プログレスバーのラベル部分 (ランク名と%) */
     display: flex;
     justify-content: space-between;
     margin-bottom: 5px;
@@ -191,11 +224,13 @@ td:last-child {
     font-size: 0.9em;
 }
 .progress-label .rank-type {
+    /* "Combat Rank" などのランク種別 */
     font-weight: bold;
     color: var(--header-color);
     opacity: 0.9;
 }
 .progress-label .rank-progress-percent {
+    /* "50%" などの進捗率 */
     opacity: 0.8;
 }
 .progress-bar-container {
@@ -208,6 +243,7 @@ td:last-child {
     position: relative;
 }
 .progress-bar {
+    /* プログレスバー本体 */
     height: 100%;
     background-color: var(--progress-bar-bg);
     width: 0%; /* JSで更新 */
@@ -215,6 +251,7 @@ td:last-child {
     border-radius: 3px;
 }
 .progress-text {
+    /* プログレスバー上の中央テキスト (例: 50/100) */
     position: absolute;
     top: 50%;
     left: 50%;
@@ -228,6 +265,7 @@ td:last-child {
 }
 /* --- Styles for rank names inside the progress bar --- */
 .rank-name-current, .rank-name-next {
+    /* プログレスバー上のランク名 */
     position: absolute;
     top: 50%;
     transform: translateY(-50%);
@@ -240,12 +278,13 @@ td:last-child {
     text-shadow: 1px 1px 3px rgba(0,0,0,0.8), -1px -1px 3px rgba(0,0,0,0.8), 1px -1px 3px rgba(0,0,0,0.8), -1px 1px 3px rgba(0,0,0,0.8);
 }
 .rank-name-current {
+    /* 現在のランク名 (左側) */
     left: 8px;
 }
 .rank-name-next {
+    /* 次のランク名 (右側) */
     right: 8px;
 }
-
 /* --- New OBS and Log Styles --- */
 .record-button {
     background-color: #28a745;
@@ -255,9 +294,11 @@ td:last-child {
     background-color: #218838;
 }
 .record-button.recording {
+    /* 録画中のスタイル */
     background-color: #dc3545;
 }
 .record-button.recording:hover {
+    /* 録画中のホバースタイル */
     background-color: #c82333;
 }
 .copy-button {
@@ -277,6 +318,7 @@ td:last-child {
     background-color: #0069d9;
 }
 #event-log-display {
+    /* イベントログ表示エリア */
     width: 100%;
     box-sizing: border-box;
     background-color: var(--bg-color);
@@ -289,6 +331,37 @@ td:last-child {
     resize: vertical;
 }
 #event-log-display::placeholder {
+    /* ログエリアのプレースホルダー */
     color: var(--text-color);
     opacity: 0.5;
+}
+
+/* --- ドラッグハンドル --- */
+.drag-handle {
+    flex-shrink: 0;
+    width: 15px;
+    background-color: var(--handle-bg);
+    cursor: grab;
+    border-right: 1px solid var(--border-color);
+    background-image:
+        repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255, 255, 255, 0.05) 2px, rgba(255, 255, 255, 0.05) 4px),
+        repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(255, 255, 255, 0.05) 2px, rgba(255, 255, 255, 0.05) 4px);
+}
+.drag-handle:active {
+    cursor: grabbing;
+}
+.card-main-content {
+    padding: 10px;
+    flex-grow: 1;
+}
+/* --- SortableJS用スタイル --- */
+.sortable-ghost {
+    /* ドラッグ中のプレースホルダーのスタイル */
+    opacity: 0.4;
+    background-color: var(--button-bg);
+}
+.sortable-chosen {
+    /* ドラッグ対象の要素のスタイル */
+    transform: scale(1.02);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
 }
