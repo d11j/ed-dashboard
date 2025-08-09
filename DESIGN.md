@@ -99,6 +99,28 @@ deactivate Server
 @enduml
 ```
 
+### レイアウト変更シーケンス
+
+あるクライアントでカードの並び順変更が行われた場合のシーケンス図を示す。
+
+```plantuml
+@startuml
+!theme plain
+title レイアウト変更シーケンス
+
+participant "クライアント (ブラウザ)" as Client
+participant "server.js" as Server
+participant "他のクライアント" as OtherClient
+
+Client -> Client: D&Dでレイアウト変更
+Client -> Server: レイアウト情報
+activate Server
+Server -> Server: レイアウト情報を保持
+Server -> OtherClient: broadcast(レイアウト情報)
+deactivate Server
+@enduml
+```
+
 ## 3.状態遷移
 `JournalProcessor`は以下の主要な状態を管理する。
 
@@ -140,6 +162,7 @@ deactivate Server
 | full_update | 最新の統計情報をすべて送信する。クライアントの初回接続時や状態リセット後に送信される。| `{ "bounty": { "count": 10, ... }, ... }` |
 | log_update | 更新されたイベントログの配列を送信する。| `["[00:00:00] -- 録画開始 --"]`|
 | obs_recording_state | OBSの録画ステータスの変更をクライアントに通知する。 | `{ "isRecording": true }`| 
+| layout_apply | レイアウトの更新を通知する。 | `{'left-column': ['rank-progression', ...], 'right-column': ['combat', ...]}` |
 
 ### 4.3. クライアントからサーバーへのメッセージ
 
@@ -150,3 +173,4 @@ deactivate Server
 | reset_stats | サーバーにすべての統計データのリセットを要求する。 | `null` |
 | start_obs_recording | サーバーにOBSの録画開始を要求する。 | `null` |
 | stop_obs_recording | サーバーにOBSの録画停止を要求する。 | `null` |
+| layout_update | レイアウトの変更をサーバに通知する。 | `{'left-column': ['rank-progression', ...], 'right-column': ['combat', ...]}` |
