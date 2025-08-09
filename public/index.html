@@ -1,14 +1,18 @@
 <!DOCTYPE html>
 <html lang="ja">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ED Dashboard</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=Roboto+Mono:wght@100;500&display=swap" rel="stylesheet">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400..900&family=Roboto+Mono:wght@100;500&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="assets/style.css">
 </head>
+
 <body>
     <div id="status-indicator" class="status disconnected">Offline</div>
     <div class="controls">
@@ -66,17 +70,17 @@
                             </div>
                         </div>
                         <div id="progress-container">
-                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
-
             <div class="card">
                 <div class="toggle-section">
                     <input type="checkbox" id="toggle-log" class="toggle-checkbox" checked>
                     <label for="toggle-log" class="toggle-label h2">Event Log</label>
                     <div class="toggle-content">
-                        <textarea id="event-log-display" readonly rows="10" placeholder="Logs will be recorded here when you start recording with OBS."></textarea>
+                        <textarea id="event-log-display" readonly rows="10"
+                            placeholder="Logs will be recorded here when you start recording with OBS."></textarea>
                         <button id="copy-log-button" class="copy-button">Copy Log</button>
                     </div>
                 </div>
@@ -124,31 +128,59 @@
                     <input type="checkbox" id="toggle-mat-summary" class="toggle-checkbox" checked>
                     <label for="toggle-mat-summary" class="toggle-label h2">Materials Collected</label>
                     <div class="toggle-content">
-                    <div class="summary-grid">
-                        <div class="summary-item">
-                            <div class="label">Total Collected</div>
-                            <div id="mat-total" class="value">0</div>
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <div class="label">Total Collected</div>
+                                <div id="mat-total" class="value">0</div>
+                            </div>
+                        </div>
+                        <div class="toggle-section">
+                            <input type="checkbox" id="toggle-mat-categories" class="toggle-checkbox" checked>
+                            <label for="toggle-mat-categories" class="toggle-label h3">Collected by Category</label>
+                            <div class="toggle-content">
+                                <table id="mat-categories-table"></table>
+                            </div>
+                        </div>
+                        <div class="toggle-section">
+                            <input type="checkbox" id="toggle-mat-details" class="toggle-checkbox" checked>
+                            <label for="toggle-mat-details" class="toggle-label h3">Details</label>
+                            <div class="toggle-content">
+                                <table id="mat-details-table"></table>
+                            </div>
                         </div>
                     </div>
-                    <div class="toggle-section">
-                        <input type="checkbox" id="toggle-mat-categories" class="toggle-checkbox" checked>
-                        <label for="toggle-mat-categories" class="toggle-label h3">Collected by Category</label>
-                        <div class="toggle-content">
-                            <table id="mat-categories-table"></table>
+                </div>
+            </div>
+
+            <div class="card" id="exploration-card">
+                <div class="toggle-section">
+                    <input type="checkbox" id="toggle-exploration-summary" class="toggle-checkbox" checked>
+                    <label for="toggle-exploration-summary" class="toggle-label h2">Exploration Summary</label>
+                    <div class="toggle-content">
+                        <div class="summary-grid">
+                            <div class="summary-item">
+                                <div class="label">Total Scans</div>
+                                <div id="exploration-scans" class="value">0</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="label">Est. Value</div>
+                                <div id="exploration-value" class="value">0</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="label">High Value Scans</div>
+                                <div id="exploration-high-value" class="value">0</div>
+                            </div>
+                            <div class="summary-item">
+                                <div class="label">First to Discovery</div>
+                                <div id="exploration-ftd" class="value">0</div>
+                            </div>
                         </div>
-                    </div>
-                    <div class="toggle-section">
-                        <input type="checkbox" id="toggle-mat-details" class="toggle-checkbox" checked>
-                        <label for="toggle-mat-details" class="toggle-label h3">Details</label>
-                        <div class="toggle-content">
-                            <table id="mat-details-table"></table>
-                        </div>
+
                     </div>
                 </div>
             </div>
         </div>
     </div>
-
     <script src="assets/script.js" defer></script>
 </body>
 </html>

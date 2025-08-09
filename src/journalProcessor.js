@@ -2,7 +2,7 @@ import chokidar from 'chokidar';
 import fs from 'fs';
 import path from 'path';
 import { createInterface } from 'readline';
-import { ALL_RANKS, COMBAT_RANKS, JOURNAL_DIR } from './constants.js';
+import { ALL_RANKS, COMBAT_RANKS, JOURNAL_DIR, SCAN_VALUES } from './constants.js';
 import { formatElapsedTime } from './utils.js';
 
 export class JournalProcessor {
@@ -53,6 +53,7 @@ export class JournalProcessor {
             'MissionCompleted': this.#handleMissionCompleted,
             'MissionFailed': this.#handleMissionAbandonedOrFailed,
             'MissionAbandoned': this.#handleMissionAbandonedOrFailed,
+            'Scan': this.#handleScan,
             'Progress': this.#handleProgress,
             'Rank': this.#handleRank,
             'Promotion': this.#handleRank
@@ -76,6 +77,9 @@ export class JournalProcessor {
         const initialProcessingPromises = [];
 
         const getTodaysPrefix = () => {
+            if(process.env.DEBUG_PFX) {
+                return process.env.DEBUG_PFX;
+            }
             const today = new Date();
             const year = today.getFullYear();
             const month = (today.getMonth() + 1).toString().padStart(2, '0');
@@ -548,6 +552,45 @@ export class JournalProcessor {
     #handleMissionAbandonedOrFailed(entry) {
         if (this.#activeMissions[entry.MissionID]) {
             delete this.#activeMissions[entry.MissionID];
+        }
+    }
+
+    /**
+     * Scanイベントを処理し、探査情報を集計する
+     * @param {object} entry - Scanイベントのジャーナルエントリ
+     */
+    #handleScan(entry) {
+        if(entry.ScanType !== 'Detailed') {
+            return;
+        }
+
+        // スキャン総数を更新
+        this.state.exploration.totalScans++;
+
+        // 初発見数を更新
+        const isFirstDiscovery = !this.state.exploration.firstToDiscover;
+        this.state.exploration.firstToDiscover += isFirstDiscovery ? 0 : 1;
+
+        if(isFirstDiscovery) {
+            // 初発見のイベントログを出力
+            const elapsedTime = formatElapsedTime(new Date() - this.#recordingStartTime);
+            this.eventLog.push(`[${elapsedTime}] 初発見: ${entry.BodyName}`);
+            this.#broadcastLogCallback(this.eventLog);
+        }
+
+        // テラフォーム可能かどうかをチェック
+        const isTerraformable = entry.TerraformState === 'Terraformable';
+
+        // スキャンの価値算出
+        if (entry.PlanetClass) {
+            const planetClass = entry.PlanetClass + (isTerraformable ? '(Terraformable)' : '');
+            const value = SCAN_VALUES[planetClass] || 0;
+            this.state.exploration.estimatedValue += value;
+
+            // 高価値スキャンのカウント
+            if (value > 0) {
+                this.state.exploration.highValueScans++;
+            }
         }
     }
 

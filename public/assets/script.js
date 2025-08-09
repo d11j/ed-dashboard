@@ -151,6 +151,30 @@ function updateUI(state) {
     updateKillsTable('bounty-ranks-table', state.bounty.ranks, previousState.bounty.ranks);
     updateGenericTable('bounty-targets-table', state.bounty.targets, previousState.bounty.targets, ['Target', 'Kills']);
 
+    const scansEl = document.getElementById('exploration-scans');
+    if (previousState && state.exploration.totalScans !== previousState.exploration.totalScans) {
+        highlightElement(scansEl.parentElement);
+    }
+    scansEl.textContent = state.exploration.totalScans;
+
+    const valueEl = document.getElementById('exploration-value');
+    if (previousState && state.exploration.estimatedValue !== previousState.exploration.estimatedValue) {
+        highlightElement(valueEl.parentElement);
+    }
+    valueEl.textContent = state.exploration.estimatedValue.toLocaleString();
+
+    const highValueEl = document.getElementById('exploration-high-value');
+    if (previousState && state.exploration.highValueScans !== previousState.exploration.highValueScans) {
+        highlightElement(highValueEl.parentElement);
+    }
+    highValueEl.textContent = state.exploration.highValueScans.toLocaleString();
+
+    const ftdEl = document.getElementById('exploration-ftd');
+    if (previousState && state.exploration.firstToDiscover !== previousState.exploration.firstToDiscover) {
+        highlightElement(ftdEl.parentElement);
+    }
+    ftdEl.textContent = state.exploration.firstToDiscover.toLocaleString();
+
     // --- Update Materials Summary ---
     const matTotalEl = document.getElementById('mat-total');
     if (previousState && state.materials.total !== previousState.materials.total) {
@@ -173,7 +197,7 @@ function updateUI(state) {
  * @param {object} oldMissions - 以前のミッションの状態オブジェクト
  */
 function updateMissionSummary(newMissions, oldMissions) {
-    if (!newMissions) return;
+    if (!newMissions) {return;}
     const updateElement = (id, newValue, oldValue) => {
         const element = document.getElementById(id);
         if (element) {
@@ -204,8 +228,8 @@ function updateGenericTable(tableId, newData, oldData, headers) {
 
     const tbody = table.tBodies[0] || table.createTBody();
     const sortedData = Object.entries(newData).sort(([keyA, valueA], [keyB, valueB]) => {
-        if (keyA === 'OTHERS') return 1;
-        if (keyB === 'OTHERS') return -1;
+        if (keyA === 'OTHERS') {return 1;}
+        if (keyB === 'OTHERS') {return -1;}
         return valueB - valueA;
     });
     const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
@@ -247,8 +271,8 @@ function updateKillsTable(tableId, newData, oldData) {
 
     const tbody = table.tBodies[0] || table.createTBody();
     const sortedData = Object.entries(newData).sort(([keyA, valueA], [keyB, valueB]) => {
-        if (keyA === 'OTHERS') return 1;
-        if (keyB === 'OTHERS') return -1;
+        if (keyA === 'OTHERS') {return 1;}
+        if (keyB === 'OTHERS') {return -1;}
         return valueB - valueA;
     });
     const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
@@ -295,9 +319,9 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
     );
     flatNewData.sort((a, b) => {
         const catCompare = a.category.localeCompare(b.category);
-        if (catCompare !== 0) return catCompare;
-        if (a.name === 'OTHERS') return 1;
-        if (b.name === 'OTHERS') return -1;
+        if (catCompare !== 0) {return catCompare;}
+        if (a.name === 'OTHERS') {return 1;}
+        if (b.name === 'OTHERS') {return -1;}
         return b.count - a.count;
     });
 
@@ -381,13 +405,13 @@ function getRankIcon(rankName) {
 
 function updateProgressBars(containerId, newProgressData, oldProgressData) {
     const container = document.getElementById(containerId);
-    if (!container) return;
+    if (!container) {return;}
 
     const rankOrder = ['Federation', 'Empire', 'Combat', 'Trade', 'Explore', 'Soldier', 'Exobiologist', 'CQC'];
 
     rankOrder.forEach(rankType => {
         const data = newProgressData[rankType];
-        if (!data) return;
+        if (!data) {return;}
 
         const oldData = oldProgressData ? oldProgressData[rankType] : null;
         const elementId = `progress-item-${rankType}`;
@@ -427,8 +451,8 @@ function updateProgressBars(containerId, newProgressData, oldProgressData) {
         nextRankEl.textContent = data.nextName || '';
 
         if (oldData) {
-            if (newProgress !== oldData.progress) highlightElement(progressBar.parentElement);
-            if (data.name !== oldData.name) highlightElement(currentRankEl);
+            if (newProgress !== oldData.progress) {highlightElement(progressBar.parentElement);}
+            if (data.name !== oldData.name) {highlightElement(currentRankEl);}
         }
     });
 }
