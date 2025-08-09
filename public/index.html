@@ -21,7 +21,7 @@
     </div>
     <div class="container">
         <!-- Left Column -->
-        <div class="column">
+        <div class="column" id="left-column">
             <!--
                 Layout Note: The main header and timestamp are intentionally placed
                 inside the left column and centered to align with a two-panel
@@ -33,154 +33,171 @@
             </div>
 
             <!-- Rank Progression Card -->
-            <div class="card">
-                <div class="toggle-section">
-                    <input type="checkbox" id="toggle-progress" class="toggle-checkbox" checked>
-                    <label for="toggle-progress" class="toggle-label h2">Rank Progression</label>
-                    <div class="toggle-content" id="progress-container">
-                        <!-- JavaScript will populate this area -->
+            <div class="card" data-id="rank-progression">
+                <div class="drag-handle"></div>
+                <div class="card-main-content">
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-progress" class="toggle-checkbox" checked>
+                        <label for="toggle-progress" class="toggle-label h2">Rank Progression</label>
+                        <div class="toggle-content" id="progress-container">
+                            <!-- JavaScript will populate this area -->
+                        </div>
                     </div>
                 </div>
             </div>
-            <div class="card">
-                <div class="toggle-section">
-                    <input type="checkbox" id="toggle-mission" class="toggle-checkbox" checked>
-                    <label for="toggle-mission" class="toggle-label h2">Mission Summary</label>
-                    <div class="toggle-content">
-                        <div class="toggle-section">
-                            <input type="checkbox" id="toggle-mission-summary" class="toggle-checkbox" checked>
-                            <label for="toggle-mission-summary" class="toggle-label h3">Completed Missions</label>
-                            <div class="toggle-content summary-grid">
-                                <div class="summary-item">
-                                    <div class="label">Federation</div>
-                                    <div id="missions-fed" class="value">0</div>
-                                </div>
-                                <div class="summary-item">
-                                    <div class="label">Empire</div>
-                                    <div id="missions-emp" class="value">0</div>
-                                </div>
-                                <div class="summary-item">
-                                    <div class="label">Others</div>
-                                    <div id="missions-ind" class="value">0</div>
-                                </div>
-                                <div class="summary-item">
-                                    <div class="label">Total</div>
-                                    <div id="missions-total" class="value">0</div>
+            <div class="card" data-id="mission">
+                <div class="drag-handle"></div>
+                <div class="card-main-content">
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-mission" class="toggle-checkbox" checked>
+                        <label for="toggle-mission" class="toggle-label h2">Mission Summary</label>
+                        <div class="toggle-content">
+                            <div class="toggle-section">
+                                <input type="checkbox" id="toggle-mission-summary" class="toggle-checkbox" checked>
+                                <label for="toggle-mission-summary" class="toggle-label h3">Completed Missions</label>
+                                <div class="toggle-content summary-grid">
+                                    <div class="summary-item">
+                                        <div class="label">Federation</div>
+                                        <div id="missions-fed" class="value">0</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="label">Empire</div>
+                                        <div id="missions-emp" class="value">0</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="label">Others</div>
+                                        <div id="missions-ind" class="value">0</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="label">Total</div>
+                                        <div id="missions-total" class="value">0</div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        <div id="progress-container">
-                        </div>
                     </div>
                 </div>
             </div>
-            <div class="card">
-                <div class="toggle-section">
-                    <input type="checkbox" id="toggle-log" class="toggle-checkbox" checked>
-                    <label for="toggle-log" class="toggle-label h2">Event Log</label>
-                    <div class="toggle-content">
-                        <textarea id="event-log-display" readonly rows="10"
-                            placeholder="Logs will be recorded here when you start recording with OBS."></textarea>
-                        <button id="copy-log-button" class="copy-button">Copy Log</button>
+            <div class="card" data-id="event-log">
+                <div class="drag-handle"></div>
+                <div class="card-main-content">
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-log" class="toggle-checkbox" checked>
+                        <label for="toggle-log" class="toggle-label h2">Event Log</label>
+                        <div class="toggle-content">
+                            <textarea id="event-log-display" readonly rows="10"
+                                placeholder="Logs will be recorded here when you start recording with OBS."></textarea>
+                            <button id="copy-log-button" class="copy-button">Copy Log</button>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Right Column -->
-        <div class="column">
+        <div class="column" id="right-column">
             <!-- Combat Summary Card -->
-            <div class="card">
-                <div class="toggle-section">
-                    <input type="checkbox" id="toggle-bounty-summary" class="toggle-checkbox" checked>
-                    <label for="toggle-bounty-summary" class="toggle-label h2">Combat Summary</label>
-                    <div class="toggle-content">
-                        <div class="summary-grid">
-                            <div class="summary-item">
-                                <div class="label">Total Kills</div>
-                                <div id="bounty-count" class="value">0</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="label">Total Rewards</div>
-                                <div id="bounty-rewards" class="value">0</div>
+                <div class="card" data-id="bounty">
+                    <div class="drag-handle"></div>
+                    <div class="card-main-content"> 
+                        <div class="toggle-section">
+                            <input type="checkbox" id="toggle-bounty-summary" class="toggle-checkbox" checked>
+                            <label for="toggle-bounty-summary" class="toggle-label h2">Combat Summary</label>
+                            <div class="toggle-content">
+                                <div class="summary-grid">
+                                    <div class="summary-item">
+                                        <div class="label">Total Kills</div>
+                                        <div id="bounty-count" class="value">0</div>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="label">Total Rewards</div>
+                                        <div id="bounty-rewards" class="value">0</div>
+                                    </div>
+                                </div>
+                                <div class="toggle-section">
+                                    <input type="checkbox" id="toggle-bounty-ranks" class="toggle-checkbox" checked>
+                                    <label for="toggle-bounty-ranks" class="toggle-label h3">Kills by Rank</label>
+                                    <div class="toggle-content">
+                                        <table id="bounty-ranks-table"></table>
+                                    </div>
+                                </div>
+                                <div class="toggle-section">
+                                    <input type="checkbox" id="toggle-bounty-targets" class="toggle-checkbox" checked>
+                                    <label for="toggle-bounty-targets" class="toggle-label h3">Kills by Target</label>
+                                    <div class="toggle-content">
+                                        <table id="bounty-targets-table"></table>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                        <div class="toggle-section">
-                            <input type="checkbox" id="toggle-bounty-ranks" class="toggle-checkbox" checked>
-                            <label for="toggle-bounty-ranks" class="toggle-label h3">Kills by Rank</label>
-                            <div class="toggle-content">
-                                <table id="bounty-ranks-table"></table>
+                </div>
+            </div>
+
+            <div class="card" data-id="material">
+                <div class="drag-handle"></div>
+                    <div class="card-main-content">
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-mat-summary" class="toggle-checkbox" checked>
+                        <label for="toggle-mat-summary" class="toggle-label h2">Materials Collected</label>
+                        <div class="toggle-content">
+                            <div class="summary-grid">
+                                <div class="summary-item">
+                                    <div class="label">Total Collected</div>
+                                    <div id="mat-total" class="value">0</div>
+                                </div>
                             </div>
-                        </div>
-                        <div class="toggle-section">
-                            <input type="checkbox" id="toggle-bounty-targets" class="toggle-checkbox" checked>
-                            <label for="toggle-bounty-targets" class="toggle-label h3">Kills by Target</label>
-                            <div class="toggle-content">
-                                <table id="bounty-targets-table"></table>
+                            <div class="toggle-section">
+                                <input type="checkbox" id="toggle-mat-categories" class="toggle-checkbox" checked>
+                                <label for="toggle-mat-categories" class="toggle-label h3">Collected by Category</label>
+                                <div class="toggle-content">
+                                    <table id="mat-categories-table"></table>
+                                </div>
+                            </div>
+                            <div class="toggle-section">
+                                <input type="checkbox" id="toggle-mat-details" class="toggle-checkbox" checked>
+                                <label for="toggle-mat-details" class="toggle-label h3">Details</label>
+                                <div class="toggle-content">
+                                    <table id="mat-details-table"></table>
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="card">
-                <div class="toggle-section">
-                    <input type="checkbox" id="toggle-mat-summary" class="toggle-checkbox" checked>
-                    <label for="toggle-mat-summary" class="toggle-label h2">Materials Collected</label>
-                    <div class="toggle-content">
-                        <div class="summary-grid">
-                            <div class="summary-item">
-                                <div class="label">Total Collected</div>
-                                <div id="mat-total" class="value">0</div>
+            <div class="card" id="exploration-card" data-id="exploration">
+                <div class="drag-handle"></div>
+                <div class="card-main-content">
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-exploration-summary" class="toggle-checkbox" checked>
+                        <label for="toggle-exploration-summary" class="toggle-label h2">Exploration Summary</label>
+                        <div class="toggle-content">
+                            <div class="summary-grid">
+                                <div class="summary-item">
+                                    <div class="label">Total Scans</div>
+                                    <div id="exploration-scans" class="value">0</div>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="label">Est. Value</div>
+                                    <div id="exploration-value" class="value">0</div>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="label">High Value Scans</div>
+                                    <div id="exploration-high-value" class="value">0</div>
+                                </div>
+                                <div class="summary-item">
+                                    <div class="label">First to Discovery</div>
+                                    <div id="exploration-ftd" class="value">0</div>
+                                </div>
                             </div>
                         </div>
-                        <div class="toggle-section">
-                            <input type="checkbox" id="toggle-mat-categories" class="toggle-checkbox" checked>
-                            <label for="toggle-mat-categories" class="toggle-label h3">Collected by Category</label>
-                            <div class="toggle-content">
-                                <table id="mat-categories-table"></table>
-                            </div>
-                        </div>
-                        <div class="toggle-section">
-                            <input type="checkbox" id="toggle-mat-details" class="toggle-checkbox" checked>
-                            <label for="toggle-mat-details" class="toggle-label h3">Details</label>
-                            <div class="toggle-content">
-                                <table id="mat-details-table"></table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div class="card" id="exploration-card">
-                <div class="toggle-section">
-                    <input type="checkbox" id="toggle-exploration-summary" class="toggle-checkbox" checked>
-                    <label for="toggle-exploration-summary" class="toggle-label h2">Exploration Summary</label>
-                    <div class="toggle-content">
-                        <div class="summary-grid">
-                            <div class="summary-item">
-                                <div class="label">Total Scans</div>
-                                <div id="exploration-scans" class="value">0</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="label">Est. Value</div>
-                                <div id="exploration-value" class="value">0</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="label">High Value Scans</div>
-                                <div id="exploration-high-value" class="value">0</div>
-                            </div>
-                            <div class="summary-item">
-                                <div class="label">First to Discovery</div>
-                                <div id="exploration-ftd" class="value">0</div>
-                            </div>
-                        </div>
-
                     </div>
                 </div>
             </div>
         </div>
     </div>
     <script src="assets/script.js" defer></script>
+    <!-- jsDelivr :: Sortable :: Latest (https://www.jsdelivr.com/package/npm/sortablejs) -->
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 </body>
 </html>

@@ -54,7 +54,6 @@ h1 {
     display: flex;
     background-color: var(--card-bg);
     border-radius: 8px;
-    padding: 20px;
     border: 1px solid var(--border-color);
     box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
@@ -335,4 +334,34 @@ td:last-child {
     /* ログエリアのプレースホルダー */
     color: var(--text-color);
     opacity: 0.5;
+}
+
+/* --- ドラッグハンドル --- */
+.drag-handle {
+    flex-shrink: 0;
+    width: 15px;
+    background-color: var(--handle-bg);
+    cursor: grab;
+    border-right: 1px solid var(--border-color);
+    background-image:
+        repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255, 255, 255, 0.05) 2px, rgba(255, 255, 255, 0.05) 4px),
+        repeating-linear-gradient(-45deg, transparent, transparent 2px, rgba(255, 255, 255, 0.05) 2px, rgba(255, 255, 255, 0.05) 4px);
+}
+.drag-handle:active {
+    cursor: grabbing;
+}
+.card-main-content {
+    padding: 10px;
+    flex-grow: 1;
+}
+/* --- SortableJS用スタイル --- */
+.sortable-ghost {
+    /* ドラッグ中のプレースホルダーのスタイル */
+    opacity: 0.4;
+    background-color: var(--button-bg);
+}
+.sortable-chosen {
+    /* ドラッグ対象の要素のスタイル */
+    transform: scale(1.02);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.3);
 }

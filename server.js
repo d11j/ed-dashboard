@@ -1,4 +1,5 @@
 // Elite: Dangerous Real-time Dashboard - Server
+import crypto from 'crypto';
 import express from 'express';
 import http from 'http';
 import { EventSubscription, OBSWebSocket } from 'obs-websocket-js';
@@ -14,7 +15,10 @@ const __dirname = path.dirname(__filename);
 
 // --- グローバル状態変数 ---
 
-
+let cardOrder = {
+    'left-column': ['rank-progression', 'mission', 'event-log'],
+    'right-column': ['combat', 'material', 'exploration']
+};
 let state = getInitialState(); // 初期化
 
 /** イベントログの更新を全クライアントに通知する */
@@ -47,9 +51,11 @@ const journalProcessor = new JournalProcessor(state, broadcastUpdate, broadcastL
 journalProcessor.startMonitoring();
 
 wss.on('connection', (ws) => {
-    console.log('クライアントが接続しました。');
+    ws.id = crypto.randomUUID(); // 各クライアントに一意のIDを割り当て
+    console.log(`クライアントが接続しました。 ID: ${ws.id}`);
     ws.send(JSON.stringify({ type: 'full_update', payload: makePayload(journalProcessor.state) }));
     ws.send(JSON.stringify({ type: 'log_update', payload: journalProcessor.eventLog })); // 接続時に現在のログを送信
+    ws.send(JSON.stringify({ type: 'layout_apply', payload: cardOrder })); // 接続時にカードの順序を送信
 
     ws.on('message', async (message) => {
         try {
@@ -61,6 +67,15 @@ wss.on('connection', (ws) => {
                 await obs.call('StartRecord');
             } else if (data.type === 'stop_obs_recording') {
                 await obs.call('StopRecord');
+            } else if (data.type === 'layout_update') {
+                console.log('レイアウト更新を受信:', data.payload, ws.id);
+                cardOrder = data.payload;
+                wss.clients.forEach(client => {
+                    if (client.id !== ws.id && client.readyState === client.OPEN) {
+                        console.log('レイアウト更新をブロードキャスト:', client.id);
+                        client.send(JSON.stringify({ type: 'layout_apply', payload: cardOrder }));
+                    }
+                });
             }
         } catch (e) {
             console.error('受信メッセージの処理中にエラー:', e);
@@ -99,7 +114,7 @@ obs.on('ConnectionClosed', () => {
 });
 
 obs.on('RecordStateChanged', (data) => {
-    if(!data.outputPath) {
+    if (!data.outputPath) {
         return;
     }
     const isRecording = data.outputActive;

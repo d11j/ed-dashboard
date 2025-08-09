@@ -59,6 +59,108 @@ copyLogButton.addEventListener('click', () => {
             .catch(err => console.error('コピーに失敗しました:', err));
     }
 });
+/**
+ * 引数で受け取った順序オブジェクトに基づいて、DOMのカードを並び替える
+ * @param {object} order - { "left-column": ["id1", "id2"], "right-column": ["id3"] } 形式のオブジェクト
+ */
+function applyCardOrder(order) {
+    if (!order || typeof order !== 'object') {
+        console.error('無効な順序データです。');
+        return;
+    }
+
+    // 全てのカラムをループ
+    for (const columnId in order) {
+        const columnElement = columns[columnId];
+        if (columnElement && Array.isArray(order[columnId])) {
+            // 指定された順序でカードをカラムに再配置
+            order[columnId].forEach(cardId => {
+                const cardElement = document.querySelector(`.card[data-id='${cardId}']`);
+                if (cardElement) {
+                    columnElement.appendChild(cardElement);
+                }
+            });
+        }
+    }
+}
+/**
+ * ドラッグ操作完了時に呼び出されるコールバック関数。
+ * 現在のカード順序を取得し、サーバーに通知する。
+ * @param {object} evt - SortableJSから渡されるイベントオブジェクト
+ */
+const emitOrder = (evt) => {
+    // DOM要素から現在のカード順序をオブジェクトとして構築する
+    const currentOrder = {};
+    const columns = document.querySelectorAll('.column');
+
+    columns.forEach(column => {
+        // カラムIDをキーとし、その中に含まれるカードのdata-idの配列を値とする
+        currentOrder[column.id] = Array.from(column.querySelectorAll('.card')).map(card => card.dataset.id);
+    });
+
+    // サーバーに送信するデータ構造をコンソールに出力して確認
+    console.log('サーバーに送信するカード順序:', currentOrder);
+
+    // WebSocket接続が確立している場合のみ、サーバーにデータを送信する
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        const payload = {
+            type: 'layout_update',
+            payload: currentOrder
+        };
+        socket.send(JSON.stringify(payload));
+    } else {
+        console.error('サーバーに接続されていません。順序の更新は送信できませんでした。');
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    // DOM要素の取得
+    const columns = {
+        'left-column': document.getElementById('left-column'),
+        'right-column': document.getElementById('right-column')
+    };
+
+    /**
+     * 引数で受け取った順序オブジェクトに基づいて、DOMのカードを並び替える
+     * @param {object} order - { "left-column": ["id1", "id2"], "right-column": ["id3"] } 形式のオブジェクト
+     */
+    applyCardOrder = (order) => {
+        if (!order || typeof order !== 'object') {
+            console.error('無効な順序データです。');
+            return;
+        }
+        console.log('カード順序を適用します:', order);
+
+        // 全てのカラムをループ
+        for (const columnId in order) {
+            const columnElement = columns[columnId];
+            if (columnElement && Array.isArray(order[columnId])) {
+                // 指定された順序でカードをカラムに再配置
+                order[columnId].forEach(cardId => {
+                    const cardElement = document.querySelector(`.card[data-id='${cardId}']`);
+                    if (cardElement) {
+                        columnElement.appendChild(cardElement);
+                    }
+                });
+            }
+        }
+    };
+
+    // SortableJSの初期化
+    const sortableOptions = {
+        group: 'shared',
+        animation: 150,
+        handle: '.drag-handle',
+        ghostClass: 'sortable-ghost',
+        chosenClass: 'sortable-chosen',
+        onEnd: emitOrder // ドラッグ終了時にログを更新
+    };
+
+    for (const id in columns) {
+        new Sortable(columns[id], sortableOptions);
+    }
+});
+
 
 function connect() {
     socket = new WebSocket(wsUrl);
@@ -72,6 +174,7 @@ function connect() {
     socket.onmessage = (event) => {
         const data = JSON.parse(event.data);
         // メッセージタイプに応じて処理を振り分け
+        console.log('Received message:', data.type);
         switch (data.type) {
             case 'full_update':
                 // 最初のデータ受信時は、previousStateを初期化するだけ
@@ -91,6 +194,10 @@ function connect() {
                 logDisplay.value = data.payload.join('\n');
                 // テキストエリアを常に最下部にスクロール
                 logDisplay.scrollTop = logDisplay.scrollHeight;
+                break;
+            case 'layout_apply':
+                console.log('レイアウト更新を適用:', data.payload);
+                applyCardOrder(data.payload);
                 break;
         }
     };
