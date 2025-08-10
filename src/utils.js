@@ -37,6 +37,13 @@ export function getInitialState() {
             firstToDiscover: 0, // 初発見数
             estimatedValue: 0, // 推定探査収益
         },
+        trading: {
+            totalBuy: 0,
+            totalSell: 0,
+            sellCount: 0,
+            unitsSold: 0,
+            profit: 0,
+        },
         progress: {
             Combat: { rank: 0, name: COMBAT_RANKS[0], progress: 0, nextName: COMBAT_RANKS[1] },
             Trade: { rank: 0, name: TRADE_RANKS[0], progress: 0, nextName: TRADE_RANKS[1] },

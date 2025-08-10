@@ -72,6 +72,10 @@ h1 {
     padding: 10px;
     border-radius: 4px;
 }
+.summary-item-double {
+    /* サマリー項目を2カラム幅にする */
+    grid-column: span 2;
+}
 .summary-item .label {
     /* サマリー項目のラベル (例: "Kills") */
     font-size: 0.9em;
