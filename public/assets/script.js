@@ -233,6 +233,32 @@ function updateRecordingStatusUI(isRec) {
     recordButton.textContent = isRec ? 'STOP RECORDING' : 'START RECORDING';
 }
 
+/**
+ * 数値をK, M, Gの接頭辞を付けた短い形式にフォーマットする
+ * @param {number} num - フォーマットする数値
+ * @returns {string} - フォーマット後の文字列
+ */
+function formatNumber(num) {
+    const percisiton = 3; // 小数点以下の桁数
+    if (num === null || typeof num === 'undefined') {
+        return '0';
+    }
+    const absNum = Math.abs(num);
+    let sign = num < 0 ? '-' : '';
+
+    if (absNum >= 1e9) {
+        return sign + (absNum / 1e9).toFixed(percisiton) + 'G';
+    }
+    if (absNum >= 1e6) {
+        return sign + (absNum / 1e6).toFixed(percisiton) + 'M';
+    }
+    if (absNum >= 1e3) {
+        return sign + (absNum / 1e3).toFixed(percisiton) + 'K';
+    }
+    return sign + num.toLocaleString();
+}
+
+
 function updateUI(state) {
     // --- Update Last Update Time ---
     const lastUpdateEl = document.getElementById('last-update-time');
@@ -293,6 +319,25 @@ function updateUI(state) {
 
     // --- Update Mission Summary ---
     updateMissionSummary(state.missions, previousState ? previousState.missions : null);
+
+    // --- Update Trading Summary ---
+    const tradingSellCountEl = document.getElementById('trading-sell-count');
+    if (previousState && state.trading.sellCount !== previousState.trading.sellCount) {
+        highlightElement(tradingSellCountEl.parentElement);
+    }
+    tradingSellCountEl.textContent = state.trading.sellCount.toLocaleString();
+
+    const tradingUnitsSoldEl = document.getElementById('trading-units-sold');
+    if (previousState && state.trading.unitsSold !== previousState.trading.unitsSold) {
+        highlightElement(tradingUnitsSoldEl.parentElement);
+    }
+    tradingUnitsSoldEl.textContent = state.trading.unitsSold.toLocaleString();
+
+    const tradingProfitEl = document.getElementById('trading-profit');
+    if (previousState && state.trading.profit !== previousState.trading.profit) {
+        highlightElement(tradingProfitEl.parentElement);
+    }
+    tradingProfitEl.textContent = formatNumber(state.trading.profit);
 
     // --- Update Rank Progression ---
     updateProgressBars('progress-container', state.progress, previousState ? previousState.progress : null);

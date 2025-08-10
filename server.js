@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 
 let cardOrder = {
     'left-column': ['rank-progression', 'mission', 'event-log'],
-    'right-column': ['combat', 'material', 'exploration']
+    'right-column': ['combat', 'trading', 'material', 'exploration']
 };
 let state = getInitialState(); // 初期化
 

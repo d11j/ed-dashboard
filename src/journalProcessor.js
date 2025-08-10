@@ -53,6 +53,8 @@ export class JournalProcessor {
             'MissionCompleted': this.#handleMissionCompleted,
             'MissionFailed': this.#handleMissionAbandonedOrFailed,
             'MissionAbandoned': this.#handleMissionAbandonedOrFailed,
+            'MarketBuy': this.#handleMarketBuy,
+            'MarketSell': this.#handleMarketSell,
             'Scan': this.#handleScan,
             'Progress': this.#handleProgress,
             'Rank': this.#handleRank,
@@ -554,6 +556,27 @@ export class JournalProcessor {
             delete this.#activeMissions[entry.MissionID];
         }
     }
+
+    /**
+     * MarketBuyイベントを処理し、購入総額を記録する
+     * @param {object} entry - MarketBuyイベントのジャーナルエントリ
+     */
+    #handleMarketBuy(entry) {
+        this.state.trading.totalBuy += entry.Count * entry.BuyPrice;
+        this.state.trading.profit = this.state.trading.totalSell - this.state.trading.totalBuy;
+    }
+
+    /**
+     * MarketSellイベントを処理し、売却情報を集計する
+     * @param {object} entry - MarketSellイベントのジャーナルエントリ
+     */
+    #handleMarketSell(entry) {
+        this.state.trading.totalSell += entry.TotalSale;
+        this.state.trading.sellCount++;
+        this.state.trading.unitsSold += entry.Count;
+        this.state.trading.profit = this.state.trading.totalSell - this.state.trading.totalBuy;
+    }
+
 
     /**
      * Scanイベントを処理し、探査情報を集計する
