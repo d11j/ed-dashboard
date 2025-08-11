@@ -339,11 +339,19 @@ function updateUI(state) {
     }
     tradingProfitEl.textContent = formatNumber(state.trading.profit);
 
+    // --- Update Trading ROI ---
     const tradingRoiEl = document.getElementById('trading-roi');
     if (previousState && state.trading.roi !== previousState.trading.roi) {
         highlightElement(tradingRoiEl.parentElement);
     }
-    tradingRoiEl.textContent = `${state.trading.roi.toFixed(2)}%`;
+
+    if (state.trading.roi) {
+        // 値が有限（InfinityやNaNでない）場合は、通常通りパーセンテージで表示
+        tradingRoiEl.textContent = `${state.trading.roi.toFixed(2)}%`;
+    } else {
+        // 値がNaNの場合は、無限大記号を表示
+        tradingRoiEl.textContent = '∞ %';
+    }
 
     // --- Update Rank Progression ---
     updateProgressBars('progress-container', state.progress, previousState ? previousState.progress : null);

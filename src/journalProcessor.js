@@ -564,11 +564,7 @@ export class JournalProcessor {
     #handleMarketBuy(entry) {
         this.state.trading.totalBuy += entry.Count * entry.BuyPrice;
         this.state.trading.profit = this.state.trading.totalSell - this.state.trading.totalBuy;
-        if (this.state.trading.totalBuy > 0) {
-            this.state.trading.roi = (this.state.trading.profit / this.state.trading.totalBuy) * 100;
-        } else {
-            this.state.trading.roi = 0;
-        }
+        this.state.trading.roi = (this.state.trading.profit / this.state.trading.totalBuy) * 100;
     }
 
     /**
@@ -580,11 +576,7 @@ export class JournalProcessor {
         this.state.trading.sellCount++;
         this.state.trading.unitsSold += entry.Count;
         this.state.trading.profit = this.state.trading.totalSell - this.state.trading.totalBuy;
-        if (this.state.trading.totalBuy > 0) {
-            this.state.trading.roi = (this.state.trading.profit / this.state.trading.totalBuy) * 100;
-        } else {
-            this.state.trading.roi = 0;
-        }
+        this.state.trading.roi = (this.state.trading.profit / this.state.trading.totalBuy) * 100;
     }
 
 
