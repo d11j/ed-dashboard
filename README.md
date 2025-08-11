@@ -48,7 +48,9 @@
    - `server.js` (バックエンドサーバーのコード)
    - `public/index.html` (フロントエンドUIのコード)
    - `public/assets/style.css` (フロントエンドのスタイルシート)
-   - `public/assets/script.js` (フロントエンドのJavaScript)
+   - `public/assets/main.js` (フロントエンドのJavaScript)
+   - `public/assets/uiUpdater.js` (UIの更新をするモジュール)
+   - `public/assets/websocketClient.js` (サーバとのWebSocket通信をするモジュール)
 
 3. **ライブラリのインストール:**
    ターミナル（コマンドプロンプトやPowerShellなど）を開き、`ed-dashboard` フォルダに移動します。
