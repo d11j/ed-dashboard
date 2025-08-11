@@ -1,219 +1,8 @@
-const statusIndicator = document.getElementById('status-indicator');
-const wsUrl = `ws://${window.location.host}`;
-let socket;
-// 以前のデータ状態を保存する変数
 let previousState = null;
-// OBSの録画状態を保持
-let isRecording = false;
 
-// --- DOM Element References ---
-const resetButton = document.getElementById('reset-button');
+const statusIndicator = document.getElementById('status-indicator');
 const recordButton = document.getElementById('record-button');
-const copyLogButton = document.getElementById('copy-log-button');
 const logDisplay = document.getElementById('event-log-display');
-
-// --- Event Listeners ---
-// リセットボタンの処理
-resetButton.addEventListener('click', () => {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        socket.send(JSON.stringify({ type: 'reset_stats' }));
-        console.log('リセット要求を送信しました。');
-    } else {
-        console.error('サーバーに接続されていません。');
-    }
-});
-// 録画ボタンの処理
-recordButton.addEventListener('click', () => {
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        // 現在の録画状態に応じて、開始または停止の命令を送信
-        const command = isRecording ? 'stop_obs_recording' : 'start_obs_recording';
-        socket.send(JSON.stringify({ type: command }));
-        console.log(`${command} 要求を送信しました。`);
-    } else {
-        console.error('サーバーに接続されていません。');
-    }
-});
-// ログコピーボタンの処理
-copyLogButton.addEventListener('click', () => {
-    if (logDisplay.value) {
-        // 1. textareaから全てのテキストを取得
-        const rawLog = logDisplay.value;
-
-        // 2. 正規表現でチャプター用の行を抽出・加工する
-        const chapterLog = rawLog
-            .split('\n') // 行ごとに分割
-            .filter(line => !line.startsWith('*')) // '*'で始まらない行のみをフィルタリング
-            .map(line => {
-                // 例: "[00:15:32] -- 戦闘開始 --"  ->  "00:15:32 - 戦闘開始"
-                // 例: "[00:28:10] ジャンプ: Sol へ" ->  "00:28:10 - ジャンプ: Sol へ"
-                return line.replace(/^\[(\d{2}:\d{2}:\d{2})\]\s(?:--\s)?(.+?)(?:\s--)?$/, '$1 - $2');
-            })
-            .join('\n'); // 再び改行で結合
-
-        // 3. 加工したテキストをクリップボードにコピー
-        navigator.clipboard.writeText(chapterLog)
-            .then(() => {
-                copyLogButton.textContent = 'Copied！';
-                setTimeout(() => { copyLogButton.textContent = 'Copy Log'; }, 2000);
-            })
-            .catch(err => console.error('コピーに失敗しました:', err));
-    }
-});
-/**
- * 引数で受け取った順序オブジェクトに基づいて、DOMのカードを並び替える
- * @param {object} order - { "left-column": ["id1", "id2"], "right-column": ["id3"] } 形式のオブジェクト
- */
-function applyCardOrder(order) {
-    if (!order || typeof order !== 'object') {
-        console.error('無効な順序データです。');
-        return;
-    }
-
-    // 全てのカラムをループ
-    for (const columnId in order) {
-        const columnElement = columns[columnId];
-        if (columnElement && Array.isArray(order[columnId])) {
-            // 指定された順序でカードをカラムに再配置
-            order[columnId].forEach(cardId => {
-                const cardElement = document.querySelector(`.card[data-id='${cardId}']`);
-                if (cardElement) {
-                    columnElement.appendChild(cardElement);
-                }
-            });
-        }
-    }
-}
-/**
- * ドラッグ操作完了時に呼び出されるコールバック関数。
- * 現在のカード順序を取得し、サーバーに通知する。
- * @param {object} evt - SortableJSから渡されるイベントオブジェクト
- */
-const emitOrder = (evt) => {
-    // DOM要素から現在のカード順序をオブジェクトとして構築する
-    const currentOrder = {};
-    const columns = document.querySelectorAll('.column');
-
-    columns.forEach(column => {
-        // カラムIDをキーとし、その中に含まれるカードのdata-idの配列を値とする
-        currentOrder[column.id] = Array.from(column.querySelectorAll('.card')).map(card => card.dataset.id);
-    });
-
-    // サーバーに送信するデータ構造をコンソールに出力して確認
-    console.log('サーバーに送信するカード順序:', currentOrder);
-
-    // WebSocket接続が確立している場合のみ、サーバーにデータを送信する
-    if (socket && socket.readyState === WebSocket.OPEN) {
-        const payload = {
-            type: 'layout_update',
-            payload: currentOrder
-        };
-        socket.send(JSON.stringify(payload));
-    } else {
-        console.error('サーバーに接続されていません。順序の更新は送信できませんでした。');
-    }
-};
-
-document.addEventListener('DOMContentLoaded', () => {
-    // DOM要素の取得
-    const columns = {
-        'left-column': document.getElementById('left-column'),
-        'right-column': document.getElementById('right-column')
-    };
-
-    /**
-     * 引数で受け取った順序オブジェクトに基づいて、DOMのカードを並び替える
-     * @param {object} order - { "left-column": ["id1", "id2"], "right-column": ["id3"] } 形式のオブジェクト
-     */
-    applyCardOrder = (order) => {
-        if (!order || typeof order !== 'object') {
-            console.error('無効な順序データです。');
-            return;
-        }
-        console.log('カード順序を適用します:', order);
-
-        // 全てのカラムをループ
-        for (const columnId in order) {
-            const columnElement = columns[columnId];
-            if (columnElement && Array.isArray(order[columnId])) {
-                // 指定された順序でカードをカラムに再配置
-                order[columnId].forEach(cardId => {
-                    const cardElement = document.querySelector(`.card[data-id='${cardId}']`);
-                    if (cardElement) {
-                        columnElement.appendChild(cardElement);
-                    }
-                });
-            }
-        }
-    };
-
-    // SortableJSの初期化
-    const sortableOptions = {
-        group: 'shared',
-        animation: 150,
-        handle: '.drag-handle',
-        ghostClass: 'sortable-ghost',
-        chosenClass: 'sortable-chosen',
-        onEnd: emitOrder // ドラッグ終了時にログを更新
-    };
-
-    for (const id in columns) {
-        new Sortable(columns[id], sortableOptions);
-    }
-});
-
-
-function connect() {
-    socket = new WebSocket(wsUrl);
-
-    socket.onopen = () => {
-        console.log('WebSocket connection successful');
-        statusIndicator.textContent = 'Online';
-        statusIndicator.className = 'status connected';
-    };
-
-    socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        // メッセージタイプに応じて処理を振り分け
-        console.log('Received message:', data.type);
-        switch (data.type) {
-            case 'full_update':
-                // 最初のデータ受信時は、previousStateを初期化するだけ
-                if (!previousState) {
-                    previousState = JSON.parse(JSON.stringify(data.payload));
-                }
-                updateUI(data.payload);
-                // 現在の状態を次の比較のために保存（ディープコピー）
-                previousState = JSON.parse(JSON.stringify(data.payload));
-                break;
-            case 'obs_recording_state':
-                isRecording = data.payload.isRecording;
-                updateRecordingStatusUI(isRecording);
-                break;
-            case 'log_update':
-                // ログ表示エリアを更新
-                logDisplay.value = data.payload.join('\n');
-                // テキストエリアを常に最下部にスクロール
-                logDisplay.scrollTop = logDisplay.scrollHeight;
-                break;
-            case 'layout_apply':
-                console.log('レイアウト更新を適用:', data.payload);
-                applyCardOrder(data.payload);
-                break;
-        }
-    };
-
-    socket.onclose = () => {
-        console.log('WebSocket disconnected. Reconnecting in 5 seconds...');
-        statusIndicator.textContent = 'Disconnected';
-        statusIndicator.className = 'status disconnected';
-        setTimeout(connect, 5000);
-    };
-
-    socket.onerror = (error) => {
-        console.error('WebSocket Error:', error);
-        socket.close();
-    };
-}
 
 /**
  * DOM要素を一時的にハイライトする
@@ -224,13 +13,7 @@ function highlightElement(element, className = 'highlight-value') {
     element.classList.add(className);
     setTimeout(() => {
         element.classList.remove(className);
-    }, 1500); // 1.5秒後にハイライトを解除
-}
-
-/** OBSの録画状態に応じてUIを更新する */
-function updateRecordingStatusUI(isRec) {
-    recordButton.classList.toggle('recording', isRec);
-    recordButton.textContent = isRec ? 'STOP RECORDING' : 'START RECORDING';
+    }, 1500);
 }
 
 /**
@@ -239,7 +22,7 @@ function updateRecordingStatusUI(isRec) {
  * @returns {string} - フォーマット後の文字列
  */
 function formatNumber(num) {
-    const percisiton = 3; // 小数点以下の桁数
+    const percisiton = 3;
     if (num === null || typeof num === 'undefined') {
         return '0';
     }
@@ -258,90 +41,96 @@ function formatNumber(num) {
     return sign + num.toLocaleString();
 }
 
-
+/**
+ * 渡された最新の状態オブジェクトに基づき、UI全体を更新する。
+ * @param {object} state - 最新の状態オブジェクト
+ */
 function updateUI(state) {
+    if (!state) { return; }
+
+    const oldStateExists = !!previousState;
+
     // --- Update Last Update Time ---
     const lastUpdateEl = document.getElementById('last-update-time');
-    if (state.lastUpdateTimestamp && state.lastUpdateTimestamp !== (previousState && previousState.lastUpdateTimestamp)) {
+    if (state.lastUpdateTimestamp && (!oldStateExists || state.lastUpdateTimestamp !== previousState.lastUpdateTimestamp)) {
         const date = new Date(state.lastUpdateTimestamp);
-        const timeString = date.toLocaleTimeString('en-GB'); // HH:MM:SS format
-        lastUpdateEl.textContent = `Last entry: ${timeString}`;
+        lastUpdateEl.textContent = `Last entry: ${date.toLocaleTimeString('en-GB')}`;
     }
 
     // --- Update Combat Summary ---
     const bountyCountEl = document.getElementById('bounty-count');
-    if (previousState && state.bounty.count !== previousState.bounty.count) {
+    if (oldStateExists && state.bounty.count !== previousState.bounty.count) {
         highlightElement(bountyCountEl.parentElement);
     }
-    bountyCountEl.textContent = state.bounty.count;
+    bountyCountEl.textContent = state.bounty.count.toLocaleString();
 
     const bountyRewardsEl = document.getElementById('bounty-rewards');
-    if (previousState && state.bounty.totalRewards !== previousState.bounty.totalRewards) {
+    if (oldStateExists && state.bounty.totalRewards !== previousState.bounty.totalRewards) {
         highlightElement(bountyRewardsEl.parentElement);
     }
     bountyRewardsEl.textContent = formatNumber(state.bounty.totalRewards);
 
-    updateKillsTable('bounty-ranks-table', state.bounty.ranks, previousState.bounty.ranks);
-    updateGenericTable('bounty-targets-table', state.bounty.targets, previousState.bounty.targets, ['Target', 'Kills']);
+    updateKillsTable('bounty-ranks-table', state.bounty.ranks, oldStateExists ? previousState.bounty.ranks : {});
+    updateGenericTable('bounty-targets-table', state.bounty.targets, oldStateExists ? previousState.bounty.targets : {}, ['Target', 'Kills']);
 
+    // --- Update Exploration Summary ---
     const scansEl = document.getElementById('exploration-scans');
-    if (previousState && state.exploration.totalScans !== previousState.exploration.totalScans) {
+    if (oldStateExists && state.exploration.totalScans !== previousState.exploration.totalScans) {
         highlightElement(scansEl.parentElement);
     }
-    scansEl.textContent = state.exploration.totalScans;
+    scansEl.textContent = state.exploration.totalScans.toLocaleString();
 
     const valueEl = document.getElementById('exploration-value');
-    if (previousState && state.exploration.estimatedValue !== previousState.exploration.estimatedValue) {
+    if (oldStateExists && state.exploration.estimatedValue !== previousState.exploration.estimatedValue) {
         highlightElement(valueEl.parentElement);
     }
     valueEl.textContent = formatNumber(state.exploration.estimatedValue);
 
     const highValueEl = document.getElementById('exploration-high-value');
-    if (previousState && state.exploration.highValueScans !== previousState.exploration.highValueScans) {
+    if (oldStateExists && state.exploration.highValueScans !== previousState.exploration.highValueScans) {
         highlightElement(highValueEl.parentElement);
     }
     highValueEl.textContent = state.exploration.highValueScans.toLocaleString();
 
     const ftdEl = document.getElementById('exploration-ftd');
-    if (previousState && state.exploration.firstToDiscover !== previousState.exploration.firstToDiscover) {
+    if (oldStateExists && state.exploration.firstToDiscover !== previousState.exploration.firstToDiscover) {
         highlightElement(ftdEl.parentElement);
     }
     ftdEl.textContent = state.exploration.firstToDiscover.toLocaleString();
 
     // --- Update Materials Summary ---
     const matTotalEl = document.getElementById('mat-total');
-    if (previousState && state.materials.total !== previousState.materials.total) {
+    if (oldStateExists && state.materials.total !== previousState.materials.total) {
         highlightElement(matTotalEl.parentElement);
     }
-    matTotalEl.textContent = state.materials.total;
-    updateGenericTable('mat-categories-table', state.materials.categories, previousState.materials.categories, ['Category', 'Count']);
-    updateMaterialsDetailTable('mat-details-table', state.materials.details, previousState.materials.details);
+    matTotalEl.textContent = state.materials.total.toLocaleString();
+    updateGenericTable('mat-categories-table', state.materials.categories, oldStateExists ? previousState.materials.categories : {}, ['Category', 'Count']);
+    updateMaterialsDetailTable('mat-details-table', state.materials.details, oldStateExists ? previousState.materials.details : {});
 
     // --- Update Mission Summary ---
-    updateMissionSummary(state.missions, previousState ? previousState.missions : null);
+    updateMissionSummary(state.missions, oldStateExists ? previousState.missions : null);
 
     // --- Update Trading Summary ---
     const tradingSellCountEl = document.getElementById('trading-sell-count');
-    if (previousState && state.trading.sellCount !== previousState.trading.sellCount) {
+    if (oldStateExists && state.trading.sellCount !== previousState.trading.sellCount) {
         highlightElement(tradingSellCountEl.parentElement);
     }
     tradingSellCountEl.textContent = state.trading.sellCount.toLocaleString();
 
     const tradingUnitsSoldEl = document.getElementById('trading-units-sold');
-    if (previousState && state.trading.unitsSold !== previousState.trading.unitsSold) {
+    if (oldStateExists && state.trading.unitsSold !== previousState.trading.unitsSold) {
         highlightElement(tradingUnitsSoldEl.parentElement);
     }
     tradingUnitsSoldEl.textContent = state.trading.unitsSold.toLocaleString();
 
     const tradingProfitEl = document.getElementById('trading-profit');
-    if (previousState && state.trading.profit !== previousState.trading.profit) {
+    if (oldStateExists && state.trading.profit !== previousState.trading.profit) {
         highlightElement(tradingProfitEl.parentElement);
     }
     tradingProfitEl.textContent = formatNumber(state.trading.profit);
 
-    // --- Update Trading ROI ---
     const tradingRoiEl = document.getElementById('trading-roi');
-    if (previousState && state.trading.roi !== previousState.trading.roi) {
+    if (oldStateExists && state.trading.roi !== previousState.trading.roi) {
         highlightElement(tradingRoiEl.parentElement);
     }
 
@@ -354,16 +143,29 @@ function updateUI(state) {
     }
 
     // --- Update Rank Progression ---
-    updateProgressBars('progress-container', state.progress, previousState ? previousState.progress : null);
+    updateProgressBars('progress-container', state.progress, oldStateExists ? previousState.progress : null);
+
+    // 現在の状態を次の比較のためにディープコピーして保存
+    previousState = JSON.parse(JSON.stringify(state));
 }
 
-/**
- * ミッション完了数のサマリーUIを更新する
- * @param {object} newMissions - 新しいミッションの状態オブジェクト
- * @param {object} oldMissions - 以前のミッションの状態オブジェクト
- */
+function updateRecordingStatusUI(isRec) {
+    recordButton.classList.toggle('recording', isRec);
+    recordButton.textContent = isRec ? 'STOP RECORDING' : 'START RECORDING';
+}
+
+function updateLogUI(logEntries) {
+    logDisplay.value = logEntries.join('\n');
+    logDisplay.scrollTop = logDisplay.scrollHeight;
+}
+
+function setStatusUI(isConnected) {
+    statusIndicator.textContent = isConnected ? 'Online' : 'Offline';
+    statusIndicator.className = `status ${isConnected ? 'connected' : 'disconnected'}`;
+}
+
 function updateMissionSummary(newMissions, oldMissions) {
-    if (!newMissions) {return;}
+    if (!newMissions) { return; }
     const updateElement = (id, newValue, oldValue) => {
         const element = document.getElementById(id);
         if (element) {
@@ -402,15 +204,15 @@ function updateGenericTable(tableId, newData, oldData, headers) {
 
     sortedData.forEach(([key, value]) => {
         const row = existingRows.get(key);
-        if (row) { // 既存の行を更新
+        if (row) {
             const valueCell = row.cells[1];
             if (value !== (oldData[key] || 0)) {
                 valueCell.textContent = value.toLocaleString();
                 highlightElement(valueCell);
             }
-            tbody.appendChild(row); // 行を末尾に移動してソート順を維持
+            tbody.appendChild(row);
             existingRows.delete(key);
-        } else { // 新しい行を追加
+        } else {
             const newRow = tbody.insertRow();
             newRow.dataset.key = key;
             newRow.insertCell(0).textContent = key;
@@ -418,7 +220,6 @@ function updateGenericTable(tableId, newData, oldData, headers) {
             highlightElement(newRow, 'highlight-row');
         }
     });
-
     existingRows.forEach(row => row.remove());
 }
 
@@ -462,7 +263,6 @@ function updateKillsTable(tableId, newData, oldData) {
             highlightElement(newRow, 'highlight-row');
         }
     });
-
     existingRows.forEach(row => row.remove());
 }
 
@@ -492,7 +292,6 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
     });
 
     const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
-
     flatNewData.forEach(item => {
         const key = `${item.category}::${item.name}`;
         const row = existingRows.get(key);
@@ -511,13 +310,10 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
             newRow.dataset.key = key;
             newRow.insertCell(0).textContent = item.category;
             newRow.insertCell(1).textContent = item.name;
-            const countCell = newRow.insertCell(2);
-            countCell.textContent = item.count;
-            countCell.style.fontWeight = 'bold';
+            newRow.insertCell(2).textContent = item.count.toLocaleString();
             highlightElement(newRow, 'highlight-row');
         }
     });
-
     existingRows.forEach(row => row.remove());
 }
 
@@ -553,7 +349,7 @@ function getRankIcon(rankName) {
     ).join('');
 
     const svgString = `
-        <svg width="24" height="24" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+        <svg width="16" height="16" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
             <defs>
                 <polygon id="${PART_ID}" class="fill" points="${PART_POINTS}" />
             </defs>
@@ -571,56 +367,76 @@ function getRankIcon(rankName) {
 
 function updateProgressBars(containerId, newProgressData, oldProgressData) {
     const container = document.getElementById(containerId);
-    if (!container) {return;}
+    if (!container) { return; }
 
     const rankOrder = ['Federation', 'Empire', 'Combat', 'Trade', 'Explore', 'Soldier', 'Exobiologist', 'CQC'];
-
     rankOrder.forEach(rankType => {
         const data = newProgressData[rankType];
-        if (!data) {return;}
+        if (!data) { return; }
 
         const oldData = oldProgressData ? oldProgressData[rankType] : null;
-        const elementId = `progress-item-${rankType}`;
-        let progressItem = document.getElementById(elementId);
-
+        let progressItem = document.getElementById(`progress-item-${rankType}`);
         if (!progressItem) {
             progressItem = document.createElement('div');
-            progressItem.id = elementId;
+            progressItem.id = `progress-item-${rankType}`;
             progressItem.className = 'progress-item';
             progressItem.innerHTML = `
                 <div class="progress-label">
                     <span class="rank-type">${rankType}</span>
-                    <span class="rank-progress-percent"></span>
                 </div>
                 <div class="progress-bar-container">
                     <div class="rank-name-current"></div>
                     <div class="progress-bar"></div>
                     <div class="progress-text"></div>
                     <div class="rank-name-next"></div>
-                </div>
-            `;
+                </div>`;
             container.appendChild(progressItem);
         }
 
         const progressBar = progressItem.querySelector('.progress-bar');
-        const progressText = progressItem.querySelector('.progress-text');
-        const currentRankEl = progressItem.querySelector('.rank-name-current');
-        const nextRankEl = progressItem.querySelector('.rank-name-next');
-
         const newProgress = data.progress || 0;
         progressBar.style.width = `${newProgress}%`;
-
-        progressText.textContent = `${Math.round(newProgress)}%`;
-        progressItem.querySelector('.rank-progress-percent').textContent = '';
-
-        currentRankEl.textContent = data.name || '';
-        nextRankEl.textContent = data.nextName || '';
+        progressItem.querySelector('.progress-text').textContent = `${Math.round(newProgress)}%`;
+        progressItem.querySelector('.rank-name-current').textContent = data.name || '';
+        progressItem.querySelector('.rank-name-next').textContent = data.nextName || '';
 
         if (oldData) {
-            if (newProgress !== oldData.progress) {highlightElement(progressBar.parentElement);}
-            if (data.name !== oldData.name) {highlightElement(currentRankEl);}
+            if (newProgress !== oldData.progress) {
+                highlightElement(progressBar.parentElement);
+            }
+            if (data.name !== oldData.name) {
+                highlightElement(progressItem.querySelector('.rank-name-current'));
+            }
         }
     });
 }
 
-connect();
+/**
+ * 引数で受け取った順序オブジェクトに基づいて、DOMのカードを並び替える
+ * @param {object} order - { "left-column": ["id1", "id2"], "right-column": ["id3"] } 形式のオブジェクト
+ */
+function applyCardOrder(order) {
+    const columns = {
+        'left-column': document.getElementById('left-column'),
+        'right-column': document.getElementById('right-column')
+    };
+    if (!order || typeof order !== 'object') {
+        console.error('無効な順序データです。');
+        return;
+    }
+
+    for (const columnId in order) {
+        const columnElement = columns[columnId];
+        if (columnElement && Array.isArray(order[columnId])) {
+            order[columnId].forEach(cardId => {
+                const cardElement = document.querySelector(`.card[data-id='${cardId}']`);
+                if (cardElement) {
+                    columnElement.appendChild(cardElement);
+                }
+            });
+        }
+    }
+}
+
+export { applyCardOrder, setStatusUI, updateLogUI, updateRecordingStatusUI, updateUI };
+
