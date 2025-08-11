@@ -279,7 +279,7 @@ function updateUI(state) {
     if (previousState && state.bounty.totalRewards !== previousState.bounty.totalRewards) {
         highlightElement(bountyRewardsEl.parentElement);
     }
-    bountyRewardsEl.textContent = state.bounty.totalRewards.toLocaleString();
+    bountyRewardsEl.textContent = formatNumber(state.bounty.totalRewards);
 
     updateKillsTable('bounty-ranks-table', state.bounty.ranks, previousState.bounty.ranks);
     updateGenericTable('bounty-targets-table', state.bounty.targets, previousState.bounty.targets, ['Target', 'Kills']);
@@ -294,7 +294,7 @@ function updateUI(state) {
     if (previousState && state.exploration.estimatedValue !== previousState.exploration.estimatedValue) {
         highlightElement(valueEl.parentElement);
     }
-    valueEl.textContent = state.exploration.estimatedValue.toLocaleString();
+    valueEl.textContent = formatNumber(state.exploration.estimatedValue);
 
     const highValueEl = document.getElementById('exploration-high-value');
     if (previousState && state.exploration.highValueScans !== previousState.exploration.highValueScans) {
