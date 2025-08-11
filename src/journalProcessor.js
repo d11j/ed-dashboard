@@ -601,10 +601,13 @@ export class JournalProcessor {
         this.state.exploration.totalScans++;
 
         // 初発見数を更新
-        const isFirstDiscovery = !this.state.exploration.firstToDiscover;
-        this.state.exploration.firstToDiscover += isFirstDiscovery ? 0 : 1;
+        const isFirstDiscovery = !entry.WasDiscovered && !entry.WasMapped;
+        if (isFirstDiscovery) {
+            console.log(`初発見: ${entry.BodyName}, WasDiscovered: ${entry.WasDiscovered}`);
+        }
+        this.state.exploration.firstToDiscover += isFirstDiscovery ? 1 : 0;
 
-        if(isFirstDiscovery) {
+        if(isFirstDiscovery && this.#recordingStartTime) {
             // 初発見のイベントログを出力
             const elapsedTime = formatElapsedTime(new Date() - this.#recordingStartTime);
             this.eventLog.push(`[${elapsedTime}] 初発見: ${entry.BodyName}`);
