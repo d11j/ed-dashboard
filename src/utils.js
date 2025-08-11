@@ -43,6 +43,7 @@ export function getInitialState() {
             sellCount: 0,
             unitsSold: 0,
             profit: 0,
+            roi: 0,
         },
         progress: {
             Combat: { rank: 0, name: COMBAT_RANKS[0], progress: 0, nextName: COMBAT_RANKS[1] },

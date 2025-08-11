@@ -339,6 +339,12 @@ function updateUI(state) {
     }
     tradingProfitEl.textContent = formatNumber(state.trading.profit);
 
+    const tradingRoiEl = document.getElementById('trading-roi');
+    if (previousState && state.trading.roi !== previousState.trading.roi) {
+        highlightElement(tradingRoiEl.parentElement);
+    }
+    tradingRoiEl.textContent = `${state.trading.roi.toFixed(2)}%`;
+
     // --- Update Rank Progression ---
     updateProgressBars('progress-container', state.progress, previousState ? previousState.progress : null);
 }
