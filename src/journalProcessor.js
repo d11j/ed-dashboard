@@ -602,9 +602,6 @@ export class JournalProcessor {
 
         // 初発見数を更新
         const isFirstDiscovery = !entry.WasDiscovered && !entry.WasMapped;
-        if (isFirstDiscovery) {
-            console.log(`初発見: ${entry.BodyName}, WasDiscovered: ${entry.WasDiscovered}`);
-        }
         this.state.exploration.firstToDiscover += isFirstDiscovery ? 1 : 0;
 
         if(isFirstDiscovery && this.#recordingStartTime) {
