@@ -129,6 +129,7 @@ function updateUI(state) {
     }
     tradingProfitEl.textContent = formatNumber(state.trading.profit);
 
+    // --- Update Trading ROI ---
     const tradingRoiEl = document.getElementById('trading-roi');
     if (oldStateExists && state.trading.roi !== previousState.trading.roi) {
         highlightElement(tradingRoiEl.parentElement);
