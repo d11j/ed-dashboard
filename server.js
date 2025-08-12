@@ -17,7 +17,7 @@ const __dirname = path.dirname(__filename);
 
 let cardOrder = {
     'left-column': ['rank-progression', 'mission', 'event-log'],
-    'right-column': ['combat', 'trading', 'material', 'exploration']
+    'right-column': ['combat', 'trading', 'exploration', 'material']
 };
 let state = getInitialState(); // 初期化
 
@@ -40,6 +40,26 @@ const broadcastUpdate = (state) => {
     });
 };
 
+/** OBSの録画を停止する */
+const stopRecording = async () => {
+    // OBSに接続されていない場合は何もしない
+    if (!obs.identified) {
+        return;
+    }
+    try {
+        const { outputActive } = await obs.call('GetRecordStatus');
+        if (outputActive) {
+            console.log('セッション終了を検知し、録画を自動停止します。');
+            await obs.call('StopRecord');
+        }
+    } catch (e) {
+        // GetRecordStatusが利用できない場合(OBS未接続など)はエラーになるが、無視して良い
+        if (e.code !== 'NotConnected') {
+            console.error('録画の自動停止中にエラー:', e);
+        }
+    }
+};
+
 // --- ExpressサーバーとWebSocketサーバーのセットアップ ---
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
@@ -47,7 +67,11 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
 // --- JournalProcessorのインスタンス化 ---
-const journalProcessor = new JournalProcessor(state, broadcastUpdate, broadcastLogUpdate);
+const journalProcessor = new JournalProcessor(state);
+journalProcessor.on('update', broadcastUpdate);
+journalProcessor.on('logUpdate', broadcastLogUpdate);
+journalProcessor.on('sessionEnd', stopRecording);
+
 journalProcessor.startMonitoring();
 
 wss.on('connection', (ws) => {

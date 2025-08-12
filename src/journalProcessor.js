@@ -1,11 +1,12 @@
 import chokidar from 'chokidar';
+import { EventEmitter } from 'events';
 import fs from 'fs';
 import path from 'path';
 import { createInterface } from 'readline';
 import { ALL_RANKS, COMBAT_RANKS, JOURNAL_DIR, SCAN_VALUES } from './constants.js';
 import { formatElapsedTime } from './utils.js';
 
-export class JournalProcessor {
+export class JournalProcessor extends EventEmitter {
     #pilotRanks = {}; // 敵パイロットのランク情報を保持
     #processedFiles = {};
     #activeMissions = {}; // 進行中のミッション情報を保持
@@ -23,14 +24,11 @@ export class JournalProcessor {
     #sessionStartTimer = null;
     eventLog = []; // イベントログ
 
-    #broadcastUpdateCallback;
-    #broadcastLogCallback;
     #eventHandlers;
 
-    constructor(initialState, broadcastUpdateCallback, broadcastLogCallback) {
+    constructor(initialState) {
+        super();
         this.state = initialState;
-        this.#broadcastUpdateCallback = broadcastUpdateCallback;
-        this.#broadcastLogCallback = broadcastLogCallback;
 
         // --- イベントハンドラマップ ---
         this.#eventHandlers = {
@@ -136,7 +134,7 @@ export class JournalProcessor {
                         } catch (e) { /* パースエラーは無視 */ }
                     });
                 });
-                this.#broadcastUpdateCallback(this.state); // 初回スキャン完了後に一度だけブロードキャスト
+                this.emit('update', this.state); // 初回スキャン完了後に一度だけブロードキャスト
             })
             .on('error', (error) => console.error(`ファイル監視エラー: ${error}`));
     }
@@ -159,7 +157,7 @@ export class JournalProcessor {
             }
             this.#recordingStartTime = null;
         }
-        this.#broadcastLogCallback(this.eventLog);
+        this.emit('logUpdate', this.eventLog);
     }
 
     /**
@@ -168,7 +166,7 @@ export class JournalProcessor {
      */
     resetState(initialState) {
         this.state = initialState;
-        this.#broadcastUpdateCallback(this.state);
+        this.emit('update', this.state);
     }
 
     /**
@@ -196,7 +194,7 @@ export class JournalProcessor {
         }
         this.#processedFiles[filePath] = end;
         if (!suppressBroadcast) {
-            this.#broadcastUpdateCallback(this.state);
+            this.emit('update', this.state);
         }
     }
 
@@ -233,17 +231,17 @@ export class JournalProcessor {
             if (hardpointsChanged && !isInSupercruise) {
                 const logMessage = isHardpointsDeployed ? '-- 戦闘開始 --' : '-- 戦闘終了 --';
                 this.eventLog.push(`[${elapsedTime}] ${logMessage}`);
-                this.#broadcastLogCallback(this.eventLog);
+                this.emit('logUpdate', this.eventLog);
             }
 
             // 着陸シーケンスのログ
             if (landingGearChanged) {
                 if (shouldStartLandingSequence) {
                     this.eventLog.push(`[${elapsedTime}] -- 着陸開始 --`);
-                    this.#broadcastLogCallback(this.eventLog);
+                    this.emit('logUpdate', this.eventLog);
                 } else if (shouldCancelLandingSequence) {
                     this.eventLog.push(`[${elapsedTime}] -- 着陸中断 --`);
-                    this.#broadcastLogCallback(this.eventLog);
+                    this.emit('logUpdate', this.eventLog);
                 }
             }
         }
@@ -336,7 +334,7 @@ export class JournalProcessor {
         if (logMessage) {
             const prefix = isMinorEvent ? '* ' : '';
             this.eventLog.push(`${prefix}[${elapsedTime}] ${logMessage}`);
-            this.#broadcastLogCallback(this.eventLog);
+            this.emit('logUpdate', this.eventLog);
         }
     }
 
@@ -372,6 +370,8 @@ export class JournalProcessor {
 
         this.#isInGame = false;
         this.#isLoading = false;
+
+        this.emit('sessionEnd');
     }
 
     /** メインメニューに戻った際にセッションを終了とみなす */
@@ -600,7 +600,7 @@ export class JournalProcessor {
             // 初発見のイベントログを出力
             const elapsedTime = formatElapsedTime(new Date() - this.#recordingStartTime);
             this.eventLog.push(`[${elapsedTime}] 初発見: ${entry.BodyName}`);
-            this.#broadcastLogCallback(this.eventLog);
+            this.emit('logUpdate', this.eventLog);
         }
 
         // テラフォーム可能かどうかをチェック
