@@ -302,7 +302,8 @@ export class JournalProcessor extends EventEmitter {
         switch (entry.event) {
             case 'Bounty':
                 isMinorEvent = true;
-                logMessage = `撃破: ${entry.Target_Localised || entry.Target}`;
+                const enemyShip = entry.Target_Localised || entry.Target;
+                logMessage = `撃破: ${enemyShip.charAt(0).toUpperCase() + enemyShip.slice(1)}`;
                 break;
             case 'FSDJump':
                 logMessage = `ジャンプ: ${entry.StarSystem} へ`;
