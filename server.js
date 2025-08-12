@@ -68,7 +68,6 @@ wss.on('connection', (ws) => {
             } else if (data.type === 'stop_obs_recording') {
                 await obs.call('StopRecord');
             } else if (data.type === 'layout_update') {
-                console.log('レイアウト更新を受信:', data.payload, ws.id);
                 cardOrder = data.payload;
                 wss.clients.forEach(client => {
                     if (client.id !== ws.id && client.readyState === client.OPEN) {
