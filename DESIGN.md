@@ -11,12 +11,12 @@
   - 他のすべてのモジュールの初期化と連携。
   - クライアントとのWebSocket接続の管理。
   - OBS WebSocketサーバーとの通信のハンドリング。
-  - JournalProcessor からの通知の受信と、整形済みデータのクライアントへのブロードキャスト。
+  - `JournalProcessor`から発行されるイベント（`update`, `logUpdate`など）をリッスンし、整形済みデータをクライアントにブロードキャストする。
 - `src/journalProcessor.js`: アプリケーションのコアロジックモジュールとなる。クラスとして実装されており、ジャーナル処理に関連するすべてのロジックをカプセル化している。責務を以下に示す。
   - `chokidar` を用いたElite: Dangerousのジャーナルディレクトリのファイル変更監視。
   - ジャーナルエントリと Status.json をパースし、アプリケーションの状態を更新。
   - 内部的な状態フラグ（例：戦闘状態、着陸シーケンス）の管理。
-  - 注入されたコールバック関数を介した、server.js への状態変更の通知。
+  - `EventEmitter`を継承し、状態変更があった際に`update`や`logUpdate`といったイベントを発行（emit）して外部に通知する。
 - `src/constants.js`: アプリケーション全体で利用される定数をエクスポートするモジュールとなる。これには以下が含まれる。
   - PORT などのサーバー設定。
   - パイロットのランク定義（FED_RANKS, COMBAT_RANKS など）といった静的なゲームデータ。
@@ -40,7 +40,10 @@ title ジャーナルファイル変更シーケンス
 
 participant "クライアント (ブラウザ)" as Client
 participant "server.js" as Server
-participant "JournalProcessor.js" as Processor
+participant "JournalProcessor.js\n(EventEmitter)" as Processor
+
+Server -> Processor: .on('update', ...)
+Server -> Processor: .on('logUpdate', ...)
 
 Processor -> Processor: onFileChange()
 activate Processor
@@ -50,21 +53,17 @@ Processor -> Processor: #processJournalLine(line)
 group 状態更新処理
     Processor -> Processor: #eventHandlers[event].call()
     note right of Processor: イベントに応じた #handle...() を実行し、\nstateを更新する
-    Processor ->> Server: broadcastUpdateCallback(state)
-    activate Server
+    Processor ->> Server: emit('update', state)
     Server -> Server: makePayload(state)
     Server -> Client: broadcast(full_update)
-    deactivate Server
 end
 
 group イベントログ記録処理
     Processor -> Processor: #logEvent(entry)
     note right of Processor: ログ記録対象のイベントか\n内部のswitchで判断する
     alt ログ対象イベントの場合
-        Processor ->> Server: broadcastLogCallback(eventLog)
-        activate Server
+        Processor ->> Server: emit('logUpdate', eventLog)
         Server -> Client: broadcast(log_update)
-        deactivate Server
     end
 end
 
@@ -83,19 +82,26 @@ title OBS録画状態変更シーケンス
 
 participant "クライアント (ブラウザ)" as Client
 participant "server.js" as Server
-participant "JournalProcessor.js" as Processor
+participant "JournalProcessor.js\n(EventEmitter)" as Processor
 participant "OBS WebSocket" as OBS
 
-OBS -> Server: on(RecordStateChanged)
-activate Server
+Server -> Processor: .on('sessionEnd', ...)
+
+OBS ->> Server: on(RecordStateChanged)
 Server -> Client: broadcast(obs_recording_state)
 Server -> Processor: setRecordingState(isRecording, timestamp)
 activate Processor
-Processor -> Processor: eventLogが更新される
-Processor ->> Server: broadcastLogCallback(eventLog)
+Processor -> Processor: #logEvent()
+Processor ->> Server: emit('logUpdate', eventLog)
+
 deactivate Processor
 Server -> Client: broadcast(log_update)
-deactivate Server
+
+alt セッション終了時
+Processor ->> Server: emit('sessionEnd')
+Server -> OBS: StopRecord
+
+end
 @enduml
 ```
 
