@@ -71,9 +71,9 @@ function updateUI(state) {
     bountyRewardsEl.textContent = formatNumber(state.bounty.totalRewards);
 
     const bountyPerHourEl = document.getElementById('combat-bounty-per-hour');
-    if (oldStateExists && state.bounty.bountyPerHour !== previousState.bounty.bountyPerHour) {
-        highlightElement(bountyPerHourEl.parentElement);
-    }
+    // if (oldStateExists && state.bounty.bountyPerHour !== previousState.bounty.bountyPerHour) {
+    //     highlightElement(bountyPerHourEl.parentElement);
+    // }
     bountyPerHourEl.textContent = state.bounty.bountyPerHour === null ? 'N/A' : formatNumber(state.bounty.bountyPerHour);
 
     updateKillsTable('bounty-ranks-table', state.bounty.ranks, oldStateExists ? previousState.bounty.ranks : {});
@@ -156,9 +156,9 @@ function updateUI(state) {
     profitPerTonEl.textContent = formatNumber(state.trading.profitPerTon);
 
     const profitPerHourEl = document.getElementById('trading-profit-per-hour');
-    if (oldStateExists && state.trading.profitPerHour !== previousState.trading.profitPerHour) {
-        highlightElement(profitPerHourEl.parentElement);
-    }
+    // if (oldStateExists && state.trading.profitPerHour !== previousState.trading.profitPerHour) {
+    //     highlightElement(profitPerHourEl.parentElement);
+    // }
     profitPerHourEl.textContent = state.trading.profitPerHour === null ? 'N/A' : formatNumber(state.trading.profitPerHour);
 
     // --- Update Rank Progression ---

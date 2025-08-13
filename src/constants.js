@@ -6,6 +6,7 @@ export const PORT = 3000;
 // Elite:Dangerousのジャーナルディレクトリを指定
 export const JOURNAL_DIR = path.join(os.homedir(), 'Saved Games', 'Frontier Developments', 'Elite Dangerous');
 export const MAX_OBS_RETRIES = 5; // OBSへの最大再接続試行回数
+export const UI_DEBOUNCE = 100; // UI更新のデバウンス時間（ミリ秒）
 
 // --- ランク定義 ---
 export const FED_RANKS = ['None', 'Recruit', 'Cadet', 'Midshipman', 'Petty Officer', 'Chief Petty Officer', 'Warrant Officer', 'Ensign', 'Lieutenant', 'Lieutenant Commander', 'Post Commander', 'Post Captain', 'Rear Admiral', 'Vice Admiral', 'Admiral'];
