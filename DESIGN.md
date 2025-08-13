@@ -55,6 +55,7 @@ group 状態更新処理
     note right of Processor: イベントに応じた #handle...() を実行し、\nstateを更新する
     Processor ->> Server: emit('update', state)
     Server -> Server: makePayload(state)
+    note right of Server: 派生データ(効率指標)を計算し、\nstateを更新する
     Server -> Client: broadcast(full_update)
 end
 

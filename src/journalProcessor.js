@@ -22,6 +22,7 @@ export class JournalProcessor extends EventEmitter {
     #isLoading = false; // LoadGame～Locationの間trueになるフラグ
     #isInitialLoaded = false; // 初回ロードが完了したかどうか
     #sessionStartTimer = null;
+    #firstLoadGameTime = null;
     eventLog = []; // イベントログ
 
     #eventHandlers;
@@ -61,6 +62,19 @@ export class JournalProcessor extends EventEmitter {
     }
 
     /**
+     * セッションの経過時間を「時間」単位で返す。
+     * セッションが開始されていない場合はnullを返す。
+     * @returns {number|null}
+     */
+    getElapsedSessionHours() {
+        if (this.#firstLoadGameTime === null) {
+            return null;
+        }
+
+        return (new Date() - this.#firstLoadGameTime) / (1000 * 60 * 60);
+    }
+
+    /**
      * ジャーナルディレクトリを監視し、ファイルの追加や変更を検知して処理を行う
      * 監視開始時に既存のジャーナルファイルも処理する
      */
@@ -77,7 +91,7 @@ export class JournalProcessor extends EventEmitter {
         const initialProcessingPromises = [];
 
         const getTodaysPrefix = () => {
-            if(process.env.DEBUG_PFX) {
+            if (process.env.DEBUG_PFX) {
                 return process.env.DEBUG_PFX;
             }
             const today = new Date();
@@ -346,6 +360,11 @@ export class JournalProcessor extends EventEmitter {
      * @param {object} entry - LoadGameイベントのジャーナルエントリ
      */
     #handleLoadGame(entry) {
+        const eventTime = new Date(entry.timestamp);
+        if (this.#firstLoadGameTime === null || eventTime < this.#firstLoadGameTime) {
+            this.#firstLoadGameTime = eventTime;
+        }
+
         if (entry.Docked || entry.StartLanded) {
             this.#isInitialTakeoffComplete = false;
             this.#wasLandingGearDown = true;
@@ -362,6 +381,7 @@ export class JournalProcessor extends EventEmitter {
         if (!this.#isInGame) {
             return;
         }
+
         console.log('セッションが終了しました。Status.jsonの監視を無効化します。');
 
         if (this.#sessionStartTimer) {
@@ -378,7 +398,7 @@ export class JournalProcessor extends EventEmitter {
     /** メインメニューに戻った際にセッションを終了とみなす */
     #handleMusic(entry) {
         if (entry.MusicTrack === 'MainMenu') {
-            this.#handleSessionEnd();
+            this.#handleSessionEnd(entry);
         }
     }
 
@@ -565,7 +585,6 @@ export class JournalProcessor extends EventEmitter {
     #handleMarketBuy(entry) {
         this.state.trading.totalBuy += entry.Count * entry.BuyPrice;
         this.state.trading.profit = this.state.trading.totalSell - this.state.trading.totalBuy;
-        this.state.trading.roi = (this.state.trading.profit / this.state.trading.totalBuy) * 100;
     }
 
     /**
@@ -577,7 +596,6 @@ export class JournalProcessor extends EventEmitter {
         this.state.trading.sellCount++;
         this.state.trading.unitsSold += entry.Count;
         this.state.trading.profit = this.state.trading.totalSell - this.state.trading.totalBuy;
-        this.state.trading.roi = (this.state.trading.profit / this.state.trading.totalBuy) * 100;
     }
 
 
@@ -586,7 +604,7 @@ export class JournalProcessor extends EventEmitter {
      * @param {object} entry - Scanイベントのジャーナルエントリ
      */
     #handleScan(entry) {
-        if(entry.ScanType !== 'Detailed') {
+        if (entry.ScanType !== 'Detailed') {
             return;
         }
 
@@ -597,7 +615,7 @@ export class JournalProcessor extends EventEmitter {
         const isFirstDiscovery = !entry.WasDiscovered && !entry.WasMapped;
         this.state.exploration.firstToDiscover += isFirstDiscovery ? 1 : 0;
 
-        if(isFirstDiscovery && this.#recordingStartTime) {
+        if (isFirstDiscovery && this.#recordingStartTime) {
             // 初発見のイベントログを出力
             const elapsedTime = formatElapsedTime(new Date() - this.#recordingStartTime);
             this.eventLog.push(`[${elapsedTime}] 初発見: ${entry.BodyName}`);
