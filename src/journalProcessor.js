@@ -22,7 +22,7 @@ export class JournalProcessor extends EventEmitter {
     #isLoading = false; // LoadGame～Locationの間trueになるフラグ
     #isInitialLoaded = false; // 初回ロードが完了したかどうか
     #sessionStartTimer = null;
-    #firstLoadGameTime = null;
+    #efficiencyStartTime = null;
     eventLog = []; // イベントログ
 
     #eventHandlers;
@@ -67,11 +67,11 @@ export class JournalProcessor extends EventEmitter {
      * @returns {number|null}
      */
     getElapsedSessionHours() {
-        if (this.#firstLoadGameTime === null) {
+        if (this.#efficiencyStartTime === null) {
             return null;
         }
 
-        return (new Date() - this.#firstLoadGameTime) / (1000 * 60 * 60);
+        return (new Date() - this.#efficiencyStartTime) / (1000 * 60 * 60);
     }
 
     /**
@@ -180,6 +180,7 @@ export class JournalProcessor extends EventEmitter {
      */
     resetState(initialState) {
         this.state = initialState;
+        this.#efficiencyStartTime = new Date();
         this.emit('update', this.state);
     }
 
@@ -361,8 +362,8 @@ export class JournalProcessor extends EventEmitter {
      */
     #handleLoadGame(entry) {
         const eventTime = new Date(entry.timestamp);
-        if (this.#firstLoadGameTime === null || eventTime < this.#firstLoadGameTime) {
-            this.#firstLoadGameTime = eventTime;
+        if (this.#efficiencyStartTime === null || eventTime < this.#efficiencyStartTime) {
+            this.#efficiencyStartTime = eventTime;
         }
 
         if (entry.Docked || entry.StartLanded) {
