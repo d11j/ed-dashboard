@@ -152,6 +152,26 @@ function makePayload(state) {
     // クライアントに送信する用の状態オブジェクトをディープコピー
     const stateForBroadcast = JSON.parse(JSON.stringify(state));
 
+    // セッションの経過時間を取得
+    const elapsedHours = journalProcessor.getElapsedSessionHours();
+
+    // 時間効率
+    stateForBroadcast.trading.profitPerHour = null;
+    stateForBroadcast.bounty.bountyPerHour = null;
+
+    if (elapsedHours !== null && elapsedHours > 0) {
+        // 時間あたり利益
+        stateForBroadcast.trading.profitPerHour = state.trading.profit / elapsedHours;
+        // 時間あたり懸賞金額 (Bounty + CombatBond)
+        stateForBroadcast.bounty.bountyPerHour = state.bounty.totalRewards / elapsedHours;
+    }
+
+    // トンあたりの利益
+    stateForBroadcast.trading.profitPerTon = null;
+    if (state.trading.unitsSold > 0) {
+        stateForBroadcast.trading.profitPerTon = state.trading.profit / state.trading.unitsSold;
+    }
+
     // bounty.targetsを処理し、TOP5と「その他」に集約する
     const originalTargets = state.bounty.targets;
     const sortedTargets = Object.entries(originalTargets).sort(([, a], [, b]) => b - a);
