@@ -585,7 +585,6 @@ export class JournalProcessor extends EventEmitter {
     #handleMarketBuy(entry) {
         this.state.trading.totalBuy += entry.Count * entry.BuyPrice;
         this.state.trading.profit = this.state.trading.totalSell - this.state.trading.totalBuy;
-        this.state.trading.roi = (this.state.trading.profit / this.state.trading.totalBuy) * 100;
     }
 
     /**
@@ -597,7 +596,6 @@ export class JournalProcessor extends EventEmitter {
         this.state.trading.sellCount++;
         this.state.trading.unitsSold += entry.Count;
         this.state.trading.profit = this.state.trading.totalSell - this.state.trading.totalBuy;
-        this.state.trading.roi = (this.state.trading.profit / this.state.trading.totalBuy) * 100;
     }
 
 

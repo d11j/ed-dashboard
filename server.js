@@ -172,6 +172,12 @@ function makePayload(state) {
         stateForBroadcast.trading.profitPerTon = state.trading.profit / state.trading.unitsSold;
     }
 
+    // ROI (投資利益率)
+    stateForBroadcast.trading.roi = null;
+    if (state.trading.totalBuy > 0) {
+        stateForBroadcast.trading.roi = (stateForBroadcast.trading.profit / stateForBroadcast.trading.totalBuy) * 100;
+    }
+
     // bounty.targetsを処理し、TOP5と「その他」に集約する
     const originalTargets = state.bounty.targets;
     const sortedTargets = Object.entries(originalTargets).sort(([, a], [, b]) => b - a);
