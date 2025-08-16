@@ -80,6 +80,18 @@ function updateUI(state) {
     updateGenericTable('bounty-targets-table', state.bounty.targets, oldStateExists ? previousState.bounty.targets : {}, ['Target', 'Kills']);
 
     // --- Update Exploration Summary ---
+    const jumpsEl = document.getElementById('exploration-jumps');
+    if (oldStateExists && state.exploration.jumpCount !== previousState.exploration.jumpCount) {
+        highlightElement(scansEl.parentElement);
+    }
+    jumpsEl.textContent = state.exploration.jumpCount.toLocaleString();
+
+    const distEl = document.getElementById('exploration-distance');
+    if (oldStateExists && state.exploration.jumpDistance !== previousState.exploration.jumpDistance) {
+        highlightElement(distEl.parentElement);
+    }
+    distEl.textContent = formatDistance(state.exploration.jumpDistance);
+
     const scansEl = document.getElementById('exploration-scans');
     if (oldStateExists && state.exploration.totalScans !== previousState.exploration.totalScans) {
         highlightElement(scansEl.parentElement);
@@ -215,8 +227,8 @@ function updateGenericTable(tableId, newData, oldData, headers) {
 
     const tbody = table.tBodies[0] || table.createTBody();
     const sortedData = Object.entries(newData).sort(([keyA, valueA], [keyB, valueB]) => {
-        if (keyA === 'OTHERS') {return 1;}
-        if (keyB === 'OTHERS') {return -1;}
+        if (keyA === 'OTHERS') { return 1; }
+        if (keyB === 'OTHERS') { return -1; }
         return valueB - valueA;
     });
     const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
@@ -257,8 +269,8 @@ function updateKillsTable(tableId, newData, oldData) {
 
     const tbody = table.tBodies[0] || table.createTBody();
     const sortedData = Object.entries(newData).sort(([keyA, valueA], [keyB, valueB]) => {
-        if (keyA === 'OTHERS') {return 1;}
-        if (keyB === 'OTHERS') {return -1;}
+        if (keyA === 'OTHERS') { return 1; }
+        if (keyB === 'OTHERS') { return -1; }
         return valueB - valueA;
     });
     const existingRows = new Map([...tbody.rows].map(row => [row.dataset.key, row]));
@@ -304,9 +316,9 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
     );
     flatNewData.sort((a, b) => {
         const catCompare = a.category.localeCompare(b.category);
-        if (catCompare !== 0) {return catCompare;}
-        if (a.name === 'OTHERS') {return 1;}
-        if (b.name === 'OTHERS') {return -1;}
+        if (catCompare !== 0) { return catCompare; }
+        if (a.name === 'OTHERS') { return 1; }
+        if (b.name === 'OTHERS') { return -1; }
         return b.count - a.count;
     });
 
@@ -337,7 +349,7 @@ function updateMaterialsDetailTable(tableId, newData, oldData) {
 }
 
 /**
- * パイロットの戦闘ランク名に応じたSVGアイコン要素を生成して返す。(リファクタリング版)
+ * パイロットの戦闘ランク名に応じたSVGアイコン要素を生成して返す。
  * @param {string} rankName - 'Harmless', 'Novice', 'Elite' などの戦闘ランク名。
  * @returns {SVGSVGElement} - 対応するSVGアイコンのDOM要素。
  */
@@ -382,6 +394,26 @@ function getRankIcon(rankName) {
     const div = document.createElement('div');
     div.innerHTML = svgString.trim();
     return div.firstChild;
+}
+
+/**
+ * 光年(ly)で渡された距離を、1,000以上であればkly単位に変換し、
+ * 3桁ごとにカンマを付けてフォーマットする関数。
+ * @param {number} ly - 距離（光年単位）
+ * @returns {string} フォーマットされた距離の文字列
+ */
+function formatDistance(ly) {
+    if (typeof ly !== 'number' || isNaN(ly)) {
+        return 'NaN';
+    }
+
+    if (ly >= 1000) {
+        const klyValue = ly / 1000;
+        // toLocaleString()メソッドが3桁区切りのカンマ挿入を自動で行う。
+        return klyValue.toLocaleString('en-US') + ' kly';
+    } else {
+        return ly.toLocaleString('en-US') + ' ly';
+    }
 }
 
 function updateProgressBars(containerId, newProgressData, oldProgressData) {

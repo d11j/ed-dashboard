@@ -36,6 +36,8 @@ export function getInitialState() {
             highValueScans: 0, // 高価値スキャン数
             firstToDiscover: 0, // 初発見数
             estimatedValue: 0, // 推定探査収益
+            jumpCount: 0, // ジャンプ数
+            jumpDistance: 0, // ジャンプ距離
         },
         trading: {
             totalBuy: 0,
