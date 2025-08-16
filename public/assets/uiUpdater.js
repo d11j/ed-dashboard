@@ -82,7 +82,7 @@ function updateUI(state) {
     // --- Update Exploration Summary ---
     const jumpsEl = document.getElementById('exploration-jumps');
     if (oldStateExists && state.exploration.jumpCount !== previousState.exploration.jumpCount) {
-        highlightElement(scansEl.parentElement);
+        highlightElement(jumpsEl.parentElement);
     }
     jumpsEl.textContent = state.exploration.jumpCount.toLocaleString();
 
