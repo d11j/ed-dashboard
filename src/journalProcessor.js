@@ -457,6 +457,12 @@ export class JournalProcessor extends EventEmitter {
                 }, 1500);
             }
         }
+
+        // FSDJumpの統計処理
+        if (entry.JumpDist) {
+            this.state.exploration.jumpCount++;
+            this.state.exploration.jumpDistance += entry.JumpDist;
+        }
     }
 
     /**
