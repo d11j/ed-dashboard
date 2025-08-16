@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import fs from 'fs';
 import path from 'path';
 import { createInterface } from 'readline';
-import { ALL_RANKS, COMBAT_RANKS, JOURNAL_DIR, SCAN_VALUES } from './constants.js';
+import { ALL_RANKS, COMBAT_RANKS, JOURNAL_DIR, SCAN_VALUES, UI_DEBOUNCE } from './constants.js';
 import { formatElapsedTime } from './utils.js';
 
 export class JournalProcessor extends EventEmitter {
@@ -22,7 +22,8 @@ export class JournalProcessor extends EventEmitter {
     #isLoading = false; // LoadGame～Locationの間trueになるフラグ
     #isInitialLoaded = false; // 初回ロードが完了したかどうか
     #sessionStartTimer = null;
-    #firstLoadGameTime = null;
+    #efficiencyStartTime = null;
+    #updateTimer = null; // デバウンス用タイマー
     eventLog = []; // イベントログ
 
     #eventHandlers;
@@ -67,11 +68,11 @@ export class JournalProcessor extends EventEmitter {
      * @returns {number|null}
      */
     getElapsedSessionHours() {
-        if (this.#firstLoadGameTime === null) {
+        if (this.#efficiencyStartTime === null) {
             return null;
         }
 
-        return (new Date() - this.#firstLoadGameTime) / (1000 * 60 * 60);
+        return (new Date() - this.#efficiencyStartTime) / (1000 * 60 * 60);
     }
 
     /**
@@ -109,17 +110,17 @@ export class JournalProcessor extends EventEmitter {
                 if (filename.startsWith(getTodaysPrefix()) && filename.endsWith('.log')) {
                     if (!this.#isInitialLoaded) {
                         // 初回スキャン中: Promise配列に追加し、ブロードキャストは抑制
-                        initialProcessingPromises.push(this.#processFile(filePath, true));
+                        initialProcessingPromises.push(this.#processFile(filePath));
                     } else {
                         // 運用中の新規ファイル追加: 即時処理し、ブロードキャストする
-                        this.#processFile(filePath, false);
+                        this.#processFile(filePath);
                     }
                 }
             })
             .on('change', (filePath) => {
                 const filename = path.basename(filePath);
                 if (filename.startsWith(getTodaysPrefix()) && filename.endsWith('.log')) {
-                    this.#processFile(filePath, false);
+                    this.#processFile(filePath);
                 }
             })
             .on('ready', async () => {
@@ -180,15 +181,31 @@ export class JournalProcessor extends EventEmitter {
      */
     resetState(initialState) {
         this.state = initialState;
-        this.emit('update', this.state);
+        this.#efficiencyStartTime = new Date();
+        this.#requestUpdate();
+    }
+
+    /**
+     * 状態更新をデバウンス付きで通知する
+     */
+    #requestUpdate() {
+        // 初回ロード完了前は、readyイベントで一括更新するため個別の更新は行わない
+        if (!this.#isInitialLoaded) { return; }
+
+        if (this.#updateTimer) {
+            clearTimeout(this.#updateTimer);
+        }
+        this.#updateTimer = setTimeout(() => {
+            this.emit('update', this.state);
+            this.#updateTimer = null;
+        }, UI_DEBOUNCE);
     }
 
     /**
      * ファイルを読み込み、ジャーナルエントリを処理する
      * @param {string} filePath - 処理するファイルのパス
-     * @param {boolean} suppressBroadcast - trueの場合、処理後のブロードキャストを抑制する
      */
-    async #processFile(filePath, suppressBroadcast = false) {
+    async #processFile(filePath) {
         const start = this.#processedFiles[filePath] || 0;
         let stats;
         try {
@@ -207,9 +224,6 @@ export class JournalProcessor extends EventEmitter {
             this.#processJournalLine(line);
         }
         this.#processedFiles[filePath] = end;
-        if (!suppressBroadcast) {
-            this.emit('update', this.state);
-        }
     }
 
     /**
@@ -293,6 +307,8 @@ export class JournalProcessor extends EventEmitter {
             const handler = this.#eventHandlers[entry.event];
             if (handler) {
                 handler.call(this, entry);
+                // ハンドラが存在するイベントは状態を変更する可能性があるため、UI更新をリクエスト
+                this.#requestUpdate();
             }
             this.#logEvent(entry);
         } catch (e) {
@@ -361,8 +377,8 @@ export class JournalProcessor extends EventEmitter {
      */
     #handleLoadGame(entry) {
         const eventTime = new Date(entry.timestamp);
-        if (this.#firstLoadGameTime === null || eventTime < this.#firstLoadGameTime) {
-            this.#firstLoadGameTime = eventTime;
+        if (this.#efficiencyStartTime === null || eventTime < this.#efficiencyStartTime) {
+            this.#efficiencyStartTime = eventTime;
         }
 
         if (entry.Docked || entry.StartLanded) {
