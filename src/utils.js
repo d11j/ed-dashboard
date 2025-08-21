@@ -38,6 +38,12 @@ export function getInitialState() {
             estimatedValue: 0, // 推定探査収益
             jumpCount: 0, // ジャンプ数
             jumpDistance: 0, // ジャンプ距離
+            valuableBodyFound: {
+                elw: false,
+                ww: false,
+                aw: false,
+                terraformable: false
+            }
         },
         trading: {
             totalBuy: 0,

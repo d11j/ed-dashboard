@@ -463,6 +463,17 @@ export class JournalProcessor extends EventEmitter {
             this.state.exploration.jumpCount++;
             this.state.exploration.jumpDistance += entry.JumpDist;
         }
+
+        // FSDジャンプ時にインジケータをリセット
+        if (entry.event === 'FSDJump') {
+            this.state.exploration.valuableBodyFound = {
+                elw: false,
+                ww: false,
+                aw: false,
+                terraformable: false
+            };
+        }
+
     }
 
     /**
@@ -647,8 +658,24 @@ export class JournalProcessor extends EventEmitter {
         // テラフォーム可能かどうかをチェック
         const isTerraformable = entry.TerraformState === 'Terraformable';
 
+        if (isTerraformable) {
+            this.state.exploration.valuableBodyFound.terraformable = true;
+        }
+
         // スキャンの価値算出
         if (entry.PlanetClass) {
+            switch (entry.PlanetClass) {
+                case 'Earthlike body':
+                    this.state.exploration.valuableBodyFound.elw = true;
+                    break;
+                case 'Water world':
+                    this.state.exploration.valuableBodyFound.ww = true;
+                    break;
+                case 'Ammonia world':
+                    this.state.exploration.valuableBodyFound.aw = true;
+                    break;
+            }
+
             const planetClass = entry.PlanetClass + (isTerraformable ? '(Terraformable)' : '');
             const value = SCAN_VALUES[planetClass] || 0;
             this.state.exploration.estimatedValue += value;
