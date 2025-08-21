@@ -176,6 +176,50 @@ td:last-child {
     /* チェック時にコンテンツを表示 */
     display: block;
 }
+/* --- カードヘッダー --- */
+.card-header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+/* --- 探査インジケーター --- */
+.scan-indicators {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+
+.indicator-group {
+    display: flex;
+    gap: 4px;
+    justify-content: flex-end;
+}
+
+.indicator {
+    font-family: 'Roboto Mono', monospace;
+    font-size: 0.8em;
+    font-weight: 500;
+    color: var(--text-color);
+    background-color: transparent;
+    border: 1px solid var(--border-color);
+    padding: 2px 6px;
+    border-radius: 4px;
+    opacity: 0.4;
+    transition: all 0.3s ease-in-out;
+}
+
+.indicator.active {
+    background-color: var(--header-color);
+    color: var(--card-bg);
+    border-color: var(--header-color);
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(255, 153, 0, 0.7);
+    font-weight: bold;
+}
 /* --- 操作ボタン --- */
 .controls {
     text-align: left;

@@ -80,6 +80,9 @@ function updateUI(state) {
     updateGenericTable('bounty-targets-table', state.bounty.targets, oldStateExists ? previousState.bounty.targets : {}, ['Target', 'Kills']);
 
     // --- Update Exploration Summary ---
+    updateScanIndicators(state.exploration.valuableBodyFound);
+
+    // --- Update Exploration Summary ---
     const jumpsEl = document.getElementById('exploration-jumps');
     if (oldStateExists && state.exploration.jumpCount !== previousState.exploration.jumpCount) {
         highlightElement(jumpsEl.parentElement);
@@ -178,6 +181,26 @@ function updateUI(state) {
 
     // 現在の状態を次の比較のためにディープコピーして保存
     previousState = JSON.parse(JSON.stringify(state));
+}
+
+/**
+ * スキャンインジケータのUIを更新する
+ * @param {object} valuableBodyFound - 各惑星の発見状況フラグを持つオブジェクト
+ */
+function updateScanIndicators(valuableBodyFound) {
+    if (!valuableBodyFound) { return; }
+
+    const updateIndicator = (id, isActive) => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.classList.toggle('active', isActive);
+        }
+    };
+
+    updateIndicator('indicator-elw', valuableBodyFound.elw);
+    updateIndicator('indicator-ww', valuableBodyFound.ww);
+    updateIndicator('indicator-aw', valuableBodyFound.aw);
+    updateIndicator('indicator-terraformable', valuableBodyFound.terraformable);
 }
 
 function updateRecordingStatusUI(isRec) {
