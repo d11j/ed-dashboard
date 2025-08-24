@@ -53,6 +53,9 @@
    作成したフォルダ内に、以下のファイルとフォルダを配置します。
    - `package.json` (プロジェクトの定義ファイル)
    - `server.js` (バックエンドサーバーのコード)
+   - `src/journalProcessor.js` (ジャーナルの処理をするモジュール)
+   - `src/utils.js` (ユーティリティ関数)
+   - `src/constants.js` (定数の定義)
    - `public/index.html` (フロントエンドUIのコード)
    - `public/assets/style.css` (フロントエンドのスタイルシート)
    - `public/assets/main.js` (フロントエンドのJavaScript)
