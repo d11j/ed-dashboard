@@ -26,6 +26,7 @@ export class JournalProcessor extends EventEmitter {
     #updateTimer = null; // デバウンス用タイマー
     eventLog = []; // イベントログ
     #scannedBodiesInSystem = new Set();
+    #targetPrefixes = new Set();
 
     #eventHandlers;
 
@@ -61,6 +62,14 @@ export class JournalProcessor extends EventEmitter {
             'Rank': this.#handleRank,
             'Promotion': this.#handleRank
         };
+
+        if (process.env.DEBUG_PFX) {
+            process.env.DEBUG_PFX.split(',').forEach(pfx => {
+                this.#targetPrefixes.add(pfx);
+            });
+        } else {
+            this.#targetPrefixes.add(this.#getCurrentPrefix());
+        }
     }
 
     /**
@@ -74,6 +83,20 @@ export class JournalProcessor extends EventEmitter {
         }
 
         return (new Date() - this.#efficiencyStartTime) / (1000 * 60 * 60);
+    }
+
+    /**
+     * 今日の日付に基づいて、現在のジャーナルファイルの接頭辞を取得する
+     * @return {string} 例: "Journal.2024-06-15"
+     */
+    #getCurrentPrefix() {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = (today.getMonth() + 1).toString().padStart(2, '0');
+        const day = today.getDate().toString().padStart(2, '0');
+        const currentPrefix = `Journal.${year}-${month}-${day}`;
+
+        return currentPrefix;
     }
 
     /**
@@ -92,42 +115,38 @@ export class JournalProcessor extends EventEmitter {
         // 初期読み込み完了のPromise
         const initialProcessingPromises = [];
 
-        const getTodaysPrefix = () => {
-            if (process.env.DEBUG_PFX) {
-                return process.env.DEBUG_PFX;
-            }
-            const today = new Date();
-            const year = today.getFullYear();
-            const month = (today.getMonth() + 1).toString().padStart(2, '0');
-            const day = today.getDate().toString().padStart(2, '0');
-            return `Journal.${year}-${month}-${day}`;
-        };
-
         console.log('ジャーナルファイルの初回スキャンと監視を開始します...');
 
         watcher
             .on('add', (filePath) => {
                 const filename = path.basename(filePath);
-                if (filename.startsWith(getTodaysPrefix()) && filename.endsWith('.log')) {
+                this.#targetPrefixes.add(this.#getCurrentPrefix());
+                const matchesAnyPrefix = [...this.#targetPrefixes].some(pfx => filename.startsWith(pfx));
+
+                if (matchesAnyPrefix && filename.endsWith('.log')) {
                     if (!this.#isInitialLoaded) {
                         // 初回スキャン中: Promise配列に追加し、ブロードキャストは抑制
+                        console.log(`新規ジャーナルファイル検出(初回): ${filename}`);
                         initialProcessingPromises.push(this.#processFile(filePath));
                     } else {
                         // 運用中の新規ファイル追加: 即時処理し、ブロードキャストする
+                        console.log(`新規ジャーナルファイル検出: ${filename}`);
                         this.#processFile(filePath);
                     }
                 }
             })
             .on('change', (filePath) => {
                 const filename = path.basename(filePath);
-                if (filename.startsWith(getTodaysPrefix()) && filename.endsWith('.log')) {
+                const matchesAnyPrefix = [...this.#targetPrefixes].some(pfx => filename.startsWith(pfx));
+
+                if (matchesAnyPrefix && filename.endsWith('.log')) {
                     this.#processFile(filePath);
                 }
             })
             .on('ready', async () => {
                 console.log('初回スキャン完了。リアルタイム監視中...');
 
-                // ★ すべての初回ファイル処理が完了するのを待つ
+                // すべての初回ファイル処理が完了するのを待つ
                 await Promise.all(initialProcessingPromises);
                 this.#isInitialLoaded = true;
                 console.log('すべてのジャーナル履歴の読み込みが完了しました。');
