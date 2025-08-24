@@ -128,21 +128,26 @@ deactivate Server
 @enduml
 ```
 
-## 3.状態遷移
-`JournalProcessor`は以下の主要な状態を管理する。
+## 3. 状態遷移
+
+`JournalProcessor`は、ジャーナルファイルに記録される**イベント**と、`Status.json`に記録されるリアルタイムな**状態**の2つの情報源を基に、プレイヤーの状態を管理する。
+
+ジャーナルが「撃破」「ジャンプ完了」といった完了済みのイベントを記録するのに対し、`Status.json`は「ハードポイント展開中」「ランディングギア下降中」といった**継続的な状態**をリアルタイムに反映する。これにより、ジャーナルだけでは検知できない文脈（例: 戦闘の開始）を捉えることが可能となる。
+
+主要な状態と、その遷移トリガーを以下に示す。
 
 - **飛行中 (`InFlight`)**:
-    - `Hardpoints Deployed` イベントにより **戦闘中** 状態へ移行する。
-    - `Landing Gear Down` イベントにより **着陸シーケンス** 状態へ移行する。
-    - `DockingGranted` イベントにより **着陸シーケンス** 状態へ移行する。
-- **戦闘中**
-    - `Hardpoint Retracted` イベントにより **飛行中** 状態へ移行する。
-- **着陸シーケンス(`LandingSequence`)**
-    - `Landing Gear Up` イベントにより **飛行中** 状態へ移行する。
-    - `DockingCancelled` イベントにより **飛行中** 状態へ移行する。
-    - `Docked`または`Touchdown`イベントにより **着艦 / 着陸** 状態へ移行する。
-- **着艦 / 着陸**
-    - `Undocked`または`Liftoff`イベントにより **飛行中** 状態へ移行する。
+  - `Status.json`のフラグ変更 (`Hardpoints Deployed`) により **戦闘中** 状態へ移行する。
+  - `Status.json`のフラグ変更 (`Landing Gear Down`) により **着陸シーケンス** 状態へ移行する。
+  - `DockingGranted` (ジャーナルイベント) により **着陸シーケンス** 状態へ移行する。
+- **戦闘中 (`Combat`)**:
+  - `Status.json`のフラグ変更 (`Hardpoints Retracted`) により **飛行中** 状態へ移行する。
+- **着陸シーケンス (`LandingSequence`)**:
+  - `Status.json`のフラグ変更 (`Landing Gear Up`) により **飛行中** 状態へ移行する。
+  - `DockingCancelled` (ジャーナルイベント) により **飛行中** 状態へ移行する。
+  - `Docked`または`Touchdown` (ジャーナルイベント) により **着艦 / 着陸** 状態へ移行する。
+- **着艦 / 着陸 (`Landed`)**:
+  - `Undocked`または`Liftoff` (ジャーナルイベント) により **飛行中** 状態へ移行する。
 
 ## 4. WebSocket API仕様
 
