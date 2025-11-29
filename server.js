@@ -289,6 +289,13 @@ async function persistSessionData() {
 // --- サーバーシャットダウン処理 ---
 process.on('SIGINT', async () => {
     console.log('サーバーシャットダウン処理を開始します (SIGINT)...');
+
+    // すべてのWebSocketクライアント接続を強制的に切断
+    console.log('すべてのWebSocketクライアントを切断します...');
+    wss.clients.forEach(client => {
+        client.terminate();
+    });
+
     await stopRecording();
     await persistSessionData();
 
