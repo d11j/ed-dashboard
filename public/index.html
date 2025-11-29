@@ -17,6 +17,7 @@
     <div id="status-indicator" class="status disconnected">Offline</div>
     <div class="controls">
         <button id="reset-button" class="reset-button">RESET STATS</button>
+        <button id="resume-session-btn">RESUME SESSION</button> 
         <button id="record-button" class="record-button">START RECORDING</button>
     </div>
     <div class="container">
@@ -117,6 +118,9 @@
                                         <div class="label">Bounty per Hour</div>
                                         <div id="combat-bounty-per-hour" class="value">N/A</div>
                                     </div>
+                                </div>
+                                <div class="sparkline-container">
+                                    <canvas id="bounty-sparkline"></canvas>
                                 </div>
                                 <div class="toggle-section">
                                     <input type="checkbox" id="toggle-bounty-ranks" class="toggle-checkbox" checked>
@@ -251,6 +255,9 @@
                                     <div id="trading-profit-per-hour" class="value">N/A</div>
                                 </div>
                             </div>
+                            <div class="sparkline-container">
+                                <canvas id="trading-sparkline"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -258,8 +265,9 @@
 
         </div>
     </div>
-    <script type="module" src="assets/main.js"></script>
-    <!-- jsDelivr :: Sortable :: Latest (https://www.jsdelivr.com/package/npm/sortablejs) -->
+    <script defer="defer" src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
     <script defer="defer" src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <script defer="defer" src="assets/charts.js"></script>
+    <script type="module" src="assets/main.js"></script>
 </body>
 </html>

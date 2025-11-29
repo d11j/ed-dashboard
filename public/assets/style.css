@@ -240,6 +240,22 @@ td:last-child {
 .reset-button:hover {
     background-color: #c82333;
 }
+.resume-session-button {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 1em;
+    font-weight: bold;
+    margin-left: 10px;
+}
+.resule-session-button:disabled {
+    background-color: #6c757d;
+    cursor: not-allowed;
+}
 /* --- Highlight Animation --- */
 @keyframes highlight-value-anim {
     /* 値が更新された時のハイライトアニメーション */
@@ -412,4 +428,14 @@ td:last-child {
     /* ドラッグ対象の要素のスタイル */
     transform: scale(1.02);
     box-shadow: 0 8px 16px rgba(0,0,0,0.3);
+}
+
+/* --- スパークライン --- */
+.sparkline-container {
+    height: 60px;
+    margin-top: 15px;
+    padding: 5px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: rgba(0,0,0,0.2);
 }

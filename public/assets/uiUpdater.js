@@ -2,6 +2,7 @@ let previousState = null;
 
 const statusIndicator = document.getElementById('status-indicator');
 const recordButton = document.getElementById('record-button');
+const resumeBtn = document.getElementById('resume-session-btn');
 const logDisplay = document.getElementById('event-log-display');
 
 /**
@@ -48,6 +49,9 @@ function formatNumber(num) {
 function updateUI(state) {
     if (!state) { return; }
 
+    // --- Update Button States ---
+    resumeBtn.disabled = !state.isResumable;
+
     const oldStateExists = !!previousState;
 
     // --- Update Last Update Time ---
@@ -78,6 +82,11 @@ function updateUI(state) {
 
     updateKillsTable('bounty-ranks-table', state.bounty.ranks, oldStateExists ? previousState.bounty.ranks : {});
     updateGenericTable('bounty-targets-table', state.bounty.targets, oldStateExists ? previousState.bounty.targets : {}, ['Target', 'Kills']);
+
+    // --- スパークラインの更新 ---
+    if (window.chartUtils && state.bounty.bountyHistory && (!oldStateExists || JSON.stringify(state.bounty.bountyHistory) !== JSON.stringify(previousState.bounty.bountyHistory))) {
+        window.chartUtils.createOrUpdateSparkline('bounty-sparkline', state.bounty.bountyHistory);
+    }
 
     // --- Update Exploration Summary ---
     updateScanIndicators(state.exploration.valuableBodyFound);
@@ -175,6 +184,11 @@ function updateUI(state) {
     //     highlightElement(profitPerHourEl.parentElement);
     // }
     profitPerHourEl.textContent = state.trading.profitPerHour === null ? 'N/A' : formatNumber(state.trading.profitPerHour);
+
+    // --- スパークラインの更新 ---
+    if (window.chartUtils && state.trading.tradingProfitHistory && (!oldStateExists || JSON.stringify(state.trading.tradingProfitHistory) !== JSON.stringify(previousState.trading.tradingProfitHistory))) {
+        window.chartUtils.createOrUpdateSparkline('trading-sparkline', state.trading.tradingProfitHistory);
+    }
 
     // --- Update Rank Progression ---
     updateProgressBars('progress-container', state.progress, oldStateExists ? previousState.progress : null);

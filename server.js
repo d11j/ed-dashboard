@@ -2,6 +2,8 @@
 import crypto from 'crypto';
 import express from 'express';
 import http from 'http';
+import { Low } from 'lowdb';
+import { JSONFile } from 'lowdb/node';
 import { EventSubscription, OBSWebSocket } from 'obs-websocket-js';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -13,13 +15,35 @@ import { getInitialState } from './src/utils.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// --- グローバル状態変数 ---
-
-let cardOrder = {
-    'left-column': ['rank-progression', 'mission', 'event-log'],
-    'right-column': ['combat', 'trading', 'exploration', 'material']
+// --- DBのセットアップ ---
+const defaultData = {
+    layout: {
+        'left-column': ['rank-progression', 'mission', 'event-log'],
+        'right-column': ['combat', 'trading', 'exploration', 'material']
+    },
+    history: []
 };
-let state = getInitialState(); // 初期化
+const adapter = new JSONFile('db.json');
+const db = new Low(adapter, defaultData);
+await db.read(); // 既存のdb.jsonからデータを読み込む
+
+// db.jsonが空オブジェクト{}などの場合にデフォルト値を適用する
+db.data = { ...defaultData, ...db.data };
+db.data.history = db.data.history || [];
+
+// --- グローバル状態変数 ---
+let initialState = getInitialState(); // デフォルトの初期状態
+
+// DBの履歴から最新のセッションデータのランク情報のみを取得し、初期状態として設定する
+if (db.data.history && db.data.history.length > 0) {
+    console.log('DBから最新のランク情報を復元します。');
+    const lastSession = db.data.history[db.data.history.length - 1];
+
+    // lastSessionにprogressプロパティが存在する場合、それだけを復元する
+    if (lastSession && lastSession.progress) {
+        initialState.progress = JSON.parse(JSON.stringify(lastSession.progress));
+    }
+}
 
 /** イベントログの更新を全クライアントに通知する */
 function broadcastLogUpdate(eventLog) {
@@ -67,7 +91,7 @@ const server = http.createServer(app);
 const wss = new WebSocketServer({ server });
 
 // --- JournalProcessorのインスタンス化 ---
-const journalProcessor = new JournalProcessor(state);
+const journalProcessor = new JournalProcessor(initialState);
 journalProcessor.on('update', broadcastUpdate);
 journalProcessor.on('logUpdate', broadcastLogUpdate);
 journalProcessor.on('sessionEnd', stopRecording);
@@ -79,26 +103,45 @@ wss.on('connection', (ws) => {
     console.log(`クライアントが接続しました。 ID: ${ws.id}`);
     ws.send(JSON.stringify({ type: 'full_update', payload: makePayload(journalProcessor.state) }));
     ws.send(JSON.stringify({ type: 'log_update', payload: journalProcessor.eventLog })); // 接続時に現在のログを送信
-    ws.send(JSON.stringify({ type: 'layout_apply', payload: cardOrder })); // 接続時にカードの順序を送信
+    ws.send(JSON.stringify({ type: 'layout_apply', payload: db.data.layout })); // 接続時にDBから読み込んだ順序を送信
 
     ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
             if (data.type === 'reset_stats') {
                 console.log('リセット要求を受信しました。統計情報を初期化します。');
+                await persistSessionData(); // 状態をリセットする前に現在のセッションを保存
                 journalProcessor.resetState(getInitialState());
             } else if (data.type === 'start_obs_recording') {
                 await obs.call('StartRecord');
             } else if (data.type === 'stop_obs_recording') {
                 await obs.call('StopRecord');
             } else if (data.type === 'layout_update') {
-                cardOrder = data.payload;
+                db.data.layout = data.payload;
+                await db.write(); // DBにレイアウトを保存
+            } else if (data.type === 'resume_last_session') {
+                console.log('最後のセッションの再開要求を受信しました。');
+                if (db.data.history && db.data.history.length > 0) {
+                    const lastSession = db.data.history[db.data.history.length - 1];
+                    // サーバー側でも復元可能かチェック
+                    if (journalProcessor.isResumable()) {
+                        journalProcessor.resumeState(lastSession);
+                    } else {
+                        console.warn('復元不可能なタイミングのため、要求を拒否しました。');
+                    }
+                } else {
+                    console.log('復元可能なセッションデータがありません。');
+                }
+
+                // 送信元以外の全クライアントに更新を通知
                 wss.clients.forEach(client => {
                     if (client.id !== ws.id && client.readyState === client.OPEN) {
-                        console.log('レイアウト更新をブロードキャスト:', client.id);
-                        client.send(JSON.stringify({ type: 'layout_apply', payload: cardOrder }));
+                        client.send(JSON.stringify({ type: 'layout_apply', payload: db.data.layout }));
                     }
                 });
+            } else if (data.type === 'get_history') {
+                // 履歴データの要求に応じて、DBから読み込んだデータを送信
+                ws.send(JSON.stringify({ type: 'history_data', payload: db.data.history || [] }));
             }
         } catch (e) {
             console.error('受信メッセージの処理中にエラー:', e);
@@ -152,6 +195,9 @@ function makePayload(state) {
     // クライアントに送信する用の状態オブジェクトをディープコピー
     const stateForBroadcast = JSON.parse(JSON.stringify(state));
 
+    // 復元可能フラグを追加
+    stateForBroadcast.isResumable = journalProcessor.isResumable();
+
     // セッションの経過時間を取得
     const elapsedHours = journalProcessor.getElapsedSessionHours();
 
@@ -180,7 +226,7 @@ function makePayload(state) {
 
     // bounty.targetsを処理し、TOP5と「その他」に集約する
     const originalTargets = state.bounty.targets;
-    const sortedTargets = Object.entries(originalTargets).sort(([, a], [, b]) => b - a);
+    const sortedTargets = originalTargets ? Object.entries(originalTargets).sort(([, a], [, b]) => b - a) : [];
 
     if (sortedTargets.length > 5) {
         const newTargets = {};
@@ -215,6 +261,42 @@ function makePayload(state) {
     stateForBroadcast.materials.details = newMaterialDetails;
     return stateForBroadcast;
 }
+
+/** 現在のセッションデータをDBに保存する */
+async function persistSessionData() {
+    // 現在のセッションデータを履歴に追加
+    // journalProcessor.stateには、makePayloadで計算される派生データ（時間効率など）が含まれない点に注意
+    const finalState = makePayload(journalProcessor.state);
+    const sessionData = {
+        date: new Date().toISOString(),
+        session_duration_hours: journalProcessor.getElapsedSessionHours(),
+        ...finalState
+    };
+
+    // 循環参照や巨大すぎるデータなどを排除
+    delete sessionData.materials.details;
+    delete sessionData.bounty.targets;
+
+    if (sessionData.session_duration_hours > 0.01) { // 1分未満のセッションは保存しない
+        db.data.history = [...db.data.history, sessionData]; // 配列の末尾にセッションデータを追加
+        await db.write();
+        console.log('セッションデータを保存しました。');
+    } else {
+        console.log('セッション時間が短すぎるため、データは保存されませんでした。');
+    }
+}
+
+// --- サーバーシャットダウン処理 ---
+process.on('SIGINT', async () => {
+    console.log('サーバーシャットダウン処理を開始します (SIGINT)...');
+    await stopRecording();
+    await persistSessionData();
+
+    server.close(() => {
+        console.log('サーバーを正常にシャットダウンしました。');
+        process.exit(0);
+    });
+});
 
 // --- サーバー起動 ---
 server.listen(PORT, () => {

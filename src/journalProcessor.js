@@ -4,7 +4,7 @@ import fs from 'fs';
 import path from 'path';
 import { createInterface } from 'readline';
 import { ALL_RANKS, COMBAT_RANKS, JOURNAL_DIR, SCAN_VALUES, UI_DEBOUNCE } from './constants.js';
-import { formatElapsedTime } from './utils.js';
+import { formatElapsedTime, getInitialState } from './utils.js';
 
 export class JournalProcessor extends EventEmitter {
     #pilotRanks = {}; // 敵パイロットのランク情報を保持
@@ -24,6 +24,7 @@ export class JournalProcessor extends EventEmitter {
     #sessionStartTimer = null;
     #efficiencyStartTime = null;
     #updateTimer = null; // デバウンス用タイマー
+    #isResumable = true; // セッション復元が可能かどうかのフラグ
     eventLog = []; // イベントログ
     #scannedBodiesInSystem = new Set();
     #targetPrefixes = new Set();
@@ -33,6 +34,7 @@ export class JournalProcessor extends EventEmitter {
     constructor(initialState) {
         super();
         this.state = initialState;
+        this.#isResumable = true; // 初期状態では復元可能
 
         // --- イベントハンドラマップ ---
         this.#eventHandlers = {
@@ -83,6 +85,11 @@ export class JournalProcessor extends EventEmitter {
         }
 
         return (new Date() - this.#efficiencyStartTime) / (1000 * 60 * 60);
+    }
+
+    /** 復元可能状態フラグを返す */
+    isResumable() {
+        return this.#isResumable;
     }
 
     /**
@@ -201,7 +208,36 @@ export class JournalProcessor extends EventEmitter {
      */
     resetState(initialState) {
         this.state = initialState;
+        this.#isResumable = true; // リセット後は復元可能にする
         this.#efficiencyStartTime = new Date();
+        this.#requestUpdate();
+    }
+
+    /**
+     * 指定された状態で現在の状態を上書きし、セッションを再開する
+     * @param {object} newState - 復元する状態オブジェクト
+     */
+    resumeState(newState) {
+        // 復元用の新しい状態を、まず初期状態のディープコピーとして作成
+        const restoredState = JSON.parse(JSON.stringify(getInitialState())); 
+
+        // DBから読み込んだデータ(newState)で、restoredStateを上書きしていく
+        // これにより、newStateに存在しないプロパティ(targets, detailsなど)は初期状態のまま残る
+        for (const key in newState) {
+            if (Object.prototype.hasOwnProperty.call(restoredState, key)) {
+                // restoredState[key]がオブジェクトで、newState[key]もオブジェクトの場合、マージする
+                // これにより、bounty.targetsなどがundefinedで上書きされるのを防ぐ
+                if (typeof restoredState[key] === 'object' && restoredState[key] !== null && !Array.isArray(restoredState[key]) &&
+                    typeof newState[key] === 'object' && newState[key] !== null && !Array.isArray(newState[key])) {
+                    Object.assign(restoredState[key], newState[key]);
+                } else {
+                    restoredState[key] = newState[key];
+                }
+            }
+        }
+        this.state = restoredState;
+        this.#isResumable = false; // 復元後は再度復元できないようにする
+        this.#efficiencyStartTime = new Date(); // 再開時点から効率計算を開始
         this.#requestUpdate();
     }
 
@@ -321,6 +357,12 @@ export class JournalProcessor extends EventEmitter {
 
             if (entry.timestamp) {
                 this.state.lastUpdateTimestamp = entry.timestamp;
+            }
+
+            // セッション開始とみなせるイベントが来たら、復元機能を無効化する
+            // LoadGameやMusicなど、ゲームプレイ開始前のイベントは除外
+            if (this.#isResumable && !['LoadGame', 'Music', 'Progress', 'Rank', 'Promotion'].includes(entry.event)) {
+                this.#isResumable = false;
             }
 
             // イベントハンドラを呼び出す
@@ -551,6 +593,11 @@ export class JournalProcessor extends EventEmitter {
         if (entry.Rewards && Array.isArray(entry.Rewards)) {
             entry.Rewards.forEach(r => { reward += r.Reward; });
             this.state.bounty.totalRewards += reward;
+            // スパークライン用の履歴を更新
+            this.state.bounty.bountyHistory.push(reward);
+            if (this.state.bounty.bountyHistory.length > 10) {
+                this.state.bounty.bountyHistory.shift(); // 古いものから削除
+            }
         }
         const targetName = entry.Target_Localised || (entry.Target.charAt(0).toUpperCase() + entry.Target.slice(1));
         this.state.bounty.targets[targetName] = (this.state.bounty.targets[targetName] || 0) + 1;
@@ -651,6 +698,12 @@ export class JournalProcessor extends EventEmitter {
         this.state.trading.sellCount++;
         this.state.trading.unitsSold += entry.Count;
         this.state.trading.profit = this.state.trading.totalSell - this.state.trading.totalBuy;
+
+        // スパークライン用の履歴を更新
+        this.state.trading.tradingProfitHistory.push(this.state.trading.profit);
+        if (this.state.trading.tradingProfitHistory.length > 10) {
+            this.state.trading.tradingProfitHistory.shift();
+        }
     }
 
 
