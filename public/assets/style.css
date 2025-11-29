@@ -252,7 +252,7 @@ td:last-child {
     font-weight: bold;
     margin-left: 10px;
 }
-.resule-session-button:disabled {
+.resume-session-button:disabled {
     background-color: #6c757d;
     cursor: not-allowed;
 }

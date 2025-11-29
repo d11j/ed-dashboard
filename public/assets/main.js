@@ -5,7 +5,7 @@ let isRecording = false;
 
 // --- DOM Element References ---
 const resetButton = document.getElementById('reset-button');
-const resumeBtn = document.getElementById('resume-session-btn');
+const resumeButton = document.getElementById('resume-session-button');
 const recordButton = document.getElementById('record-button');
 const copyLogButton = document.getElementById('copy-log-button');
 const logDisplay = document.getElementById('event-log-display');
@@ -39,7 +39,7 @@ resetButton.addEventListener('click', () => {
     console.log('リセット要求を送信しました。');
 });
 
-resumeBtn.addEventListener('click', () => {
+resumeButton.addEventListener('click', () => {
     sendMessage('resume_last_session');
 });
 

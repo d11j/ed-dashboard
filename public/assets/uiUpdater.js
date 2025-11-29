@@ -2,7 +2,7 @@ let previousState = null;
 
 const statusIndicator = document.getElementById('status-indicator');
 const recordButton = document.getElementById('record-button');
-const resumeBtn = document.getElementById('resume-session-btn');
+const resumeButton = document.getElementById('resume-session-button');
 const logDisplay = document.getElementById('event-log-display');
 
 /**
@@ -50,7 +50,7 @@ function updateUI(state) {
     if (!state) { return; }
 
     // --- Update Button States ---
-    resumeBtn.disabled = !state.isResumable;
+    resumeButton.disabled = !state.isResumable;
 
     const oldStateExists = !!previousState;
 
