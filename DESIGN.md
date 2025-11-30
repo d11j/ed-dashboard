@@ -21,6 +21,9 @@
 - `src/constants.js`: アプリケーション全体で利用される定数をエクスポートするモジュールとなる。これには以下が含まれる。
   - PORT などのサーバー設定。
   - パイロットのランク定義（FED_RANKS, COMBAT_RANKS など）といった静的なゲームデータ。
+- `src/utils.js`: アプリケーション全体で利用されるヘルパー関数を提供するモジュール。責務を以下に示す。
+  - ジャーナルファイルのパス解決。
+  - 日付や数値のフォーマット処理。
 - `db.json`: アプリケーションの設定（レイアウト）および過去のセッション統計を保持するローカルJSONデータベースファイル。
 - `public/`: クライアントサイドのすべての静的アセットを格納するディレクトリ。
   - `index.html`: UIの主要な構造。
@@ -28,6 +31,7 @@
   - `assets/main.js`: クライアントサイドのメインスクリプト。アプリケーションの初期化を行う。
   - `assets/uiUpdater.js`: UIの更新ロジックをカプセル化したモジュール。
   - `assets/websocketClient.js`: WebSocket通信を管理するモジュール。
+  - `assets/chart.js` : 埋め込みグラフを管理するモジュール
 
 ## 2. 主要なシーケンス
 
@@ -180,6 +184,7 @@ deactivate Server
 | full_update | 最新の統計情報をすべて送信する。クライアントの初回接続時や状態リセット後に送信される。| `{ "bounty": { "count": 10, ... }, ... }` |
 | log_update | 更新されたイベントログの配列を送信する。| `["[00:00:00] -- 録画開始 --"]`|
 | obs_recording_state | OBSの録画ステータスの変更をクライアントに通知する。 | `{ "isRecording": true }`| 
+| history_update | 過去のセッション履歴を送信する。 | `[{ "date": "2023-10-27", "profit": 100000, ... }]` |
 | layout_apply | レイアウトの更新を通知する。 | `{'left-column': ['rank-progression', ...], 'right-column': ['combat', ...]}` |
 
 ### 4.3. クライアントからサーバーへのメッセージ
@@ -189,6 +194,7 @@ deactivate Server
 | 種別 | 説明 | ペイロード |
 |:--- |:---|:---|
 | reset_stats | サーバーにすべての統計データのリセットを要求する。 | `null` |
+| get_history | サーバーに過去のセッション履歴の取得を要求する。 | `null` |
 | start_obs_recording | サーバーにOBSの録画開始を要求する。 | `null` |
 | stop_obs_recording | サーバーにOBSの録画停止を要求する。 | `null` |
 | layout_update | レイアウトの変更をサーバに通知する。 | `{'left-column': ['rank-progression', ...], 'right-column': ['combat', ...]}` |
@@ -225,23 +231,3 @@ UIの視認性を損なわず、数値の傾向を把握可能にするため、
   * **適用箇所**:
       * **Combat Summary**: 賞金獲得額の推移（直近10件程度）。
       * **Trading Summary**: 取引ごとの利益率の推移。
-
-```javascript
-// Chart.js Configuration Example for Sparkline
-const config = {
-    type: 'line',
-    data: { ... },
-    options: {
-        responsive: true,
-        plugins: { legend: { display: false } }, // 凡例非表示
-        scales: {
-            x: { display: false }, // X軸非表示
-            y: { display: false }  // Y軸非表示
-        },
-        elements: {
-            point: { radius: 0 }, // ポイントマーカー非表示
-            line: { borderWidth: 2 }
-        }
-    }
-};
-```
