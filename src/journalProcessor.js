@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 import fs from 'fs';
 import path from 'path';
 import { createInterface } from 'readline';
-import { ALL_RANKS, COMBAT_RANKS, JOURNAL_DIR, SCAN_VALUES, UI_DEBOUNCE } from './constants.js';
+import { ALL_RANKS, COMBAT_RANKS, FUEL_HISTORY_LENGTH, JOURNAL_DIR, SCAN_VALUES, UI_DEBOUNCE } from './constants.js';
 import { formatElapsedTime, getInitialState } from './utils.js';
 
 export class JournalProcessor extends EventEmitter {
@@ -28,6 +28,7 @@ export class JournalProcessor extends EventEmitter {
     eventLog = []; // イベントログ
     #scannedBodiesInSystem = new Set();
     #targetPrefixes = new Set();
+    #lastFuelHistoryUpdate = 0; // 燃料履歴の最終更新時刻
 
     #eventHandlers;
 
@@ -62,7 +63,8 @@ export class JournalProcessor extends EventEmitter {
             'Scan': this.#handleScan,
             'Progress': this.#handleProgress,
             'Rank': this.#handleRank,
-            'Promotion': this.#handleRank
+            'Promotion': this.#handleRank,
+            'Loadout': this.#handleLoadout
         };
 
         if (process.env.DEBUG_PFX) {
@@ -340,6 +342,22 @@ export class JournalProcessor extends EventEmitter {
                 this.#isLandingSequence = true;
             } else if (shouldCancelLandingSequence) {
                 this.#isLandingSequence = false;
+            }
+        }
+
+        // 燃料状態の更新
+        if (statusData.Fuel) {
+            const { FuelMain, FuelReservoir } = statusData.Fuel;
+            this.state.fuel.current = (FuelMain || 0) + (FuelReservoir || 0);
+
+            const now = Date.now();
+            // 1分（60000ミリ秒）以上経過していたら履歴を更新
+            if (now - this.#lastFuelHistoryUpdate > 60000) {
+                this.state.fuel.history.push(this.state.fuel.current);
+                if (this.state.fuel.history.length > FUEL_HISTORY_LENGTH) {
+                    this.state.fuel.history.shift(); // 古い履歴を削除
+                }
+                this.#lastFuelHistoryUpdate = now;
             }
         }
     }
@@ -798,6 +816,16 @@ export class JournalProcessor extends EventEmitter {
                 }
             }
         });
+    }
+
+    /**
+     * Loadoutイベントを処理し、船の装備情報（燃料タンク容量など）を更新する
+     * @param {object} entry - Loadoutイベントのジャーナルエントリ
+     */
+    #handleLoadout(entry) {
+        if (entry.FuelCapacity && entry.FuelCapacity.Main) {
+            this.state.fuel.max = entry.FuelCapacity.Main;
+        }
     }
 }
 

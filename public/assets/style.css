@@ -352,6 +352,8 @@ td:last-child {
 /* --- New OBS and Log Styles --- */
 .record-button {
     background-color: #28a745;
+    /* border: none; */
+    padding: 5px 10px;
     margin-left: 10px;
 }
 .record-button:hover {

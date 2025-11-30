@@ -193,6 +193,11 @@ function updateUI(state) {
     // --- Update Rank Progression ---
     updateProgressBars('progress-container', state.progress, oldStateExists ? previousState.progress : null);
 
+    // --- Update Fuel Graph ---
+    if (window.chartUtils && window.Chart && state.fuel && state.fuel.history && (!oldStateExists || JSON.stringify(state.fuel.history) !== JSON.stringify(previousState.fuel.history))) {
+        window.chartUtils.createOrUpdateSparkline('fuel-sparkline', state.fuel.history, { max: state.fuel.max });
+    }
+
     // 現在の状態を次の比較のためにディープコピーして保存
     previousState = JSON.parse(JSON.stringify(state));
 }

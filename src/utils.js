@@ -63,6 +63,11 @@ export function getInitialState() {
             CQC: { rank: 0, name: CQC_RANKS[0], progress: 0, nextName: CQC_RANKS[1] },
             Soldier: { rank: 0, name: SOLDIER_RANKS[0], progress: 0, nextName: SOLDIER_RANKS[1] },
             Exobiologist: { rank: 0, name: EXOBIOLOGIST_RANKS[0], progress: 0, nextName: EXOBIOLOGIST_RANKS[1] }
+        },
+        fuel: {
+            current: 0,
+            max: 32, // Default, will be updated by Loadout event
+            history: []
         }
     });
 };
