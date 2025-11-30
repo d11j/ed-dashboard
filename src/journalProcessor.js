@@ -28,7 +28,7 @@ export class JournalProcessor extends EventEmitter {
     eventLog = []; // イベントログ
     #scannedBodiesInSystem = new Set();
     #targetPrefixes = new Set();
-    #lastFuelHistoryUpdate = 0; // 燃料履歴の最終更新時刻
+    #fuelHistoryTimer = null; // 燃料履歴記録用のタイマーID
 
     #eventHandlers;
 
@@ -205,6 +205,22 @@ export class JournalProcessor extends EventEmitter {
     }
 
     /**
+     * 燃料履歴を1分ごとに記録するタイマーを開始する
+     */
+    #startFuelHistoryTimer() {
+        this.#stopFuelHistoryTimer(); // 既存のタイマーがあれば停止
+        this.#fuelHistoryTimer = setInterval(() => {
+            this.state.fuel.history.push(this.state.fuel.current);
+            if (this.state.fuel.history.length > FUEL_HISTORY_LENGTH) {
+                this.state.fuel.history.shift(); // 古い履歴を削除
+            }
+            // 履歴が更新されたので、UI更新をリクエスト
+            this.#requestUpdate();
+        }, 60000); // 60秒ごと
+        console.log('燃料履歴の記録タイマーを開始しました。');
+    }
+
+    /**
      * 統計情報をリセットする
      * @param {object} initialState - 初期状態オブジェクト
      */
@@ -212,6 +228,7 @@ export class JournalProcessor extends EventEmitter {
         this.state = initialState;
         this.#isResumable = true; // リセット後は復元可能にする
         this.#efficiencyStartTime = new Date();
+        this.#startFuelHistoryTimer(); // タイマーもリセットして開始
         this.#requestUpdate();
     }
 
@@ -221,7 +238,7 @@ export class JournalProcessor extends EventEmitter {
      */
     resumeState(newState) {
         // 復元用の新しい状態を、まず初期状態のディープコピーとして作成
-        const restoredState = JSON.parse(JSON.stringify(getInitialState())); 
+        const restoredState = JSON.parse(JSON.stringify(getInitialState()));
 
         // DBから読み込んだデータ(newState)で、restoredStateを上書きしていく
         // これにより、newStateに存在しないプロパティ(targets, detailsなど)は初期状態のまま残る
@@ -240,6 +257,7 @@ export class JournalProcessor extends EventEmitter {
         this.state = restoredState;
         this.#isResumable = false; // 復元後は再度復元できないようにする
         this.#efficiencyStartTime = new Date(); // 再開時点から効率計算を開始
+        this.#startFuelHistoryTimer(); // 再開時にもタイマーを開始
         this.#requestUpdate();
     }
 
@@ -349,16 +367,6 @@ export class JournalProcessor extends EventEmitter {
         if (statusData.Fuel) {
             const { FuelMain, FuelReservoir } = statusData.Fuel;
             this.state.fuel.current = (FuelMain || 0) + (FuelReservoir || 0);
-
-            const now = Date.now();
-            // 1分（60000ミリ秒）以上経過していたら履歴を更新
-            if (now - this.#lastFuelHistoryUpdate > 60000) {
-                this.state.fuel.history.push(this.state.fuel.current);
-                if (this.state.fuel.history.length > FUEL_HISTORY_LENGTH) {
-                    this.state.fuel.history.shift(); // 古い履歴を削除
-                }
-                this.#lastFuelHistoryUpdate = now;
-            }
         }
     }
 
@@ -489,6 +497,16 @@ export class JournalProcessor extends EventEmitter {
         this.#isLoading = false;
 
         this.emit('sessionEnd');
+        this.#stopFuelHistoryTimer();
+    }
+
+    /** 燃料履歴の記録タイマーを停止する */
+    #stopFuelHistoryTimer() {
+        if (this.#fuelHistoryTimer) {
+            clearInterval(this.#fuelHistoryTimer);
+            this.#fuelHistoryTimer = null;
+            console.log('燃料履歴の記録タイマーを停止しました。');
+        }
     }
 
     /** メインメニューに戻った際にセッションを終了とみなす */
@@ -535,6 +553,7 @@ export class JournalProcessor extends EventEmitter {
                 this.#sessionStartTimer = setTimeout(() => {
                     console.log('Status.jsonの監視を有効化します。');
                     this.#isInGame = true;
+                    this.#startFuelHistoryTimer();
                     this.#sessionStartTimer = null; // タイマーIDをクリア
                 }, 1500);
             }
