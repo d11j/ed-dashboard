@@ -672,6 +672,11 @@ export class JournalProcessor extends EventEmitter {
     #handleFactionKillBond(entry) {
         this.state.bounty.count++;
         this.state.bounty.totalRewards += entry.Reward;
+        // スパークライン用の履歴を更新
+        this.state.bounty.bountyHistory.push(entry.Reward);
+        if (this.state.bounty.bountyHistory.length > 10) {
+            this.state.bounty.bountyHistory.shift(); // 古いものから削除
+        }
     }
 
     /**

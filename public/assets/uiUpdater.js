@@ -85,7 +85,7 @@ function updateUI(state) {
 
     // --- スパークラインの更新 ---
     if (window.chartUtils && window.Chart && state.bounty.bountyHistory && (!oldStateExists || JSON.stringify(state.bounty.bountyHistory) !== JSON.stringify(previousState.bounty.bountyHistory))) {
-        window.chartUtils.createOrUpdateSparkline('bounty-sparkline', state.bounty.bountyHistory, { title: 'Bounty (Last 10 Kills)' });
+        window.chartUtils.createOrUpdateSparkline('bounty-sparkline', state.bounty.bountyHistory, { title: 'Rewards (Last 10 Kills)' });
     }
 
     // --- Update Exploration Summary ---
