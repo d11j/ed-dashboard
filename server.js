@@ -119,26 +119,20 @@ wss.on('connection', (ws) => {
             } else if (data.type === 'layout_update') {
                 db.data.layout = data.payload;
                 await db.write(); // DBにレイアウトを保存
-            } else if (data.type === 'resume_last_session') {
-                console.log('最後のセッションの再開要求を受信しました。');
-                if (db.data.history && db.data.history.length > 0) {
-                    const lastSession = db.data.history[db.data.history.length - 1];
-                    // サーバー側でも復元可能かチェック
-                    if (journalProcessor.isResumable()) {
-                        journalProcessor.resumeState(lastSession);
-                    } else {
-                        console.warn('復元不可能なタイミングのため、要求を拒否しました。');
-                    }
-                } else {
-                    console.log('復元可能なセッションデータがありません。');
-                }
-
                 // 送信元以外の全クライアントに更新を通知
                 wss.clients.forEach(client => {
                     if (client.id !== ws.id && client.readyState === client.OPEN) {
                         client.send(JSON.stringify({ type: 'layout_apply', payload: db.data.layout }));
                     }
                 });
+            } else if (data.type === 'resume_last_session') {
+                console.log('最後のセッションの再開要求を受信しました。');
+                const lastSession = db.data.history?.[db.data.history.length - 1];
+                if (lastSession && journalProcessor.isResumable()) {
+                    journalProcessor.resumeState(lastSession);
+                } else {
+                    console.warn('復元可能なセッションがないか、復元不可能なタイミングのため要求を拒否しました。');
+                }
             } else if (data.type === 'get_history') {
                 // 履歴データの要求に応じて、DBから読み込んだデータを送信
                 ws.send(JSON.stringify({ type: 'history_data', payload: db.data.history || [] }));
@@ -191,6 +185,55 @@ obs.on('RecordStateChanged', (data) => {
     journalProcessor.setRecordingState(isRecording, new Date());
 });
 
+/**
+ * ターゲットリスト（撃墜数など）をTOP5と「その他」に集約する
+ * @param {Object} targets - 元のターゲットオブジェクト
+ * @returns {Object} - 集約後のターゲットオブジェクト
+ */
+function aggregateTop5(targets) {
+    if (!targets) {
+        return {};
+    }
+    const sorted = Object.entries(targets).sort(([, a], [, b]) => b - a);
+    if (sorted.length <= 5) {
+        return targets;
+    }
+
+    const newTargets = {};
+    const top5 = sorted.slice(0, 5);
+    for (const [name, count] of top5) {
+        newTargets[name] = count;
+    }
+    const othersTotal = sorted.slice(5).reduce((sum, [, count]) => sum + count, 0);
+    if (othersTotal > 0) {
+        newTargets['OTHERS'] = othersTotal;
+    }
+    return newTargets;
+}
+
+/**
+ * マテリアルの詳細リストをカテゴリごとにTOP5と「その他」に集約する
+ * @param {Object} materialDetails - 元のマテリアル詳細オブジェクト
+ * @returns {Object} - 集約後のマテリアル詳細オブジェクト
+ */
+function aggregateMaterialDetails(materialDetails) {
+    if (!materialDetails) {
+        return {};
+    }
+    const newMaterialDetails = {};
+    for (const category in materialDetails) {
+        const materialsInCategory = materialDetails[category];
+        // カテゴリごとに集約処理を呼び出す
+        newMaterialDetails[category] = aggregateTop5(materialsInCategory);
+    }
+    return newMaterialDetails;
+}
+
+/**
+ * クライアント送信用にstateオブジェクトを整形・計算する
+ * @param {Object} state - JournalProcessorの現在のstate
+ * @returns {Object} - クライアントに送信するペイロード
+ */
 function makePayload(state) {
     // クライアントに送信する用の状態オブジェクトをディープコピー
     const stateForBroadcast = JSON.parse(JSON.stringify(state));
@@ -201,64 +244,27 @@ function makePayload(state) {
     // セッションの経過時間を取得
     const elapsedHours = journalProcessor.getElapsedSessionHours();
 
-    // 時間効率
-    stateForBroadcast.trading.profitPerHour = null;
-    stateForBroadcast.bounty.bountyPerHour = null;
-
     if (elapsedHours !== null && elapsedHours > 0) {
         // 時間あたり利益
         stateForBroadcast.trading.profitPerHour = state.trading.profit / elapsedHours;
         // 時間あたり懸賞金額 (Bounty + CombatBond)
         stateForBroadcast.bounty.bountyPerHour = state.bounty.totalRewards / elapsedHours;
+    } else {
+        stateForBroadcast.trading.profitPerHour = 0;
+        stateForBroadcast.bounty.bountyPerHour = 0;
     }
 
     // トンあたりの利益
-    stateForBroadcast.trading.profitPerTon = null;
-    if (state.trading.unitsSold > 0) {
-        stateForBroadcast.trading.profitPerTon = state.trading.profit / state.trading.unitsSold;
-    }
+    stateForBroadcast.trading.profitPerTon = state.trading.unitsSold > 0 ? state.trading.profit / state.trading.unitsSold : 0;
 
     // ROI (投資利益率)
-    stateForBroadcast.trading.roi = null;
-    if (state.trading.totalBuy > 0) {
-        stateForBroadcast.trading.roi = (stateForBroadcast.trading.profit / stateForBroadcast.trading.totalBuy) * 100;
-    }
+    stateForBroadcast.trading.roi = state.trading.totalBuy > 0 ? (state.trading.profit / state.trading.totalBuy) * 100 : 0;
 
     // bounty.targetsを処理し、TOP5と「その他」に集約する
-    const originalTargets = state.bounty.targets;
-    const sortedTargets = originalTargets ? Object.entries(originalTargets).sort(([, a], [, b]) => b - a) : [];
-
-    if (sortedTargets.length > 5) {
-        const newTargets = {};
-        // TOP5を新しいオブジェクトにコピー
-        const top5 = sortedTargets.slice(0, 5);
-        for (const [name, count] of top5) { newTargets[name] = count; }
-        const othersTotal = sortedTargets.slice(5).reduce((sum, [, count]) => sum + count, 0);
-        if (othersTotal > 0) { newTargets['OTHERS'] = othersTotal; }
-        // ブロードキャスト用のstateを更新
-        stateForBroadcast.bounty.targets = newTargets;
-
-    }
+    stateForBroadcast.bounty.targets = aggregateTop5(state.bounty.targets);
 
     // materials.detailsをカテゴリごとに処理し、TOP5と「その他」に集約する
-    const originalMaterialDetails = state.materials.details;
-    // カテゴリごとに集約した結果を格納する新しいオブジェクト
-    const newMaterialDetails = {};
-    for (const category in originalMaterialDetails) {
-        const materialsInCategory = originalMaterialDetails[category];
-        const sortedMaterials = Object.entries(materialsInCategory).sort(([, a], [, b]) => b - a);
-        if (sortedMaterials.length > 5) {
-            const newCategoryDetails = {};
-            const top5 = sortedMaterials.slice(0, 5);
-            for (const [name, count] of top5) { newCategoryDetails[name] = count; }
-            const othersTotal = sortedMaterials.slice(5).reduce((sum, [, count]) => sum + count, 0);
-            if (othersTotal > 0) { newCategoryDetails['OTHERS'] = othersTotal; }
-            newMaterialDetails[category] = newCategoryDetails;
-        } else {
-            newMaterialDetails[category] = materialsInCategory;
-        }
-    }
-    stateForBroadcast.materials.details = newMaterialDetails;
+    stateForBroadcast.materials.details = aggregateMaterialDetails(state.materials.details);
     return stateForBroadcast;
 }
 
