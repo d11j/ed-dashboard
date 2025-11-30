@@ -84,7 +84,7 @@ function updateUI(state) {
     updateGenericTable('bounty-targets-table', state.bounty.targets, oldStateExists ? previousState.bounty.targets : {}, ['Target', 'Kills']);
 
     // --- スパークラインの更新 ---
-    if (window.chartUtils && state.bounty.bountyHistory && (!oldStateExists || JSON.stringify(state.bounty.bountyHistory) !== JSON.stringify(previousState.bounty.bountyHistory))) {
+    if (window.chartUtils && window.Chart && state.bounty.bountyHistory && (!oldStateExists || JSON.stringify(state.bounty.bountyHistory) !== JSON.stringify(previousState.bounty.bountyHistory))) {
         window.chartUtils.createOrUpdateSparkline('bounty-sparkline', state.bounty.bountyHistory);
     }
 
@@ -186,7 +186,7 @@ function updateUI(state) {
     profitPerHourEl.textContent = state.trading.profitPerHour === null ? 'N/A' : formatNumber(state.trading.profitPerHour);
 
     // --- スパークラインの更新 ---
-    if (window.chartUtils && state.trading.tradingProfitHistory && (!oldStateExists || JSON.stringify(state.trading.tradingProfitHistory) !== JSON.stringify(previousState.trading.tradingProfitHistory))) {
+    if (window.chartUtils && window.Chart && state.trading.tradingProfitHistory && (!oldStateExists || JSON.stringify(state.trading.tradingProfitHistory) !== JSON.stringify(previousState.trading.tradingProfitHistory))) {
         window.chartUtils.createOrUpdateSparkline('trading-sparkline', state.trading.tradingProfitHistory);
     }
 
