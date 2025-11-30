@@ -24,9 +24,10 @@
 - `db.json`: アプリケーションの設定（レイアウト）および過去のセッション統計を保持するローカルJSONデータベースファイル。
 - `public/`: クライアントサイドのすべての静的アセットを格納するディレクトリ。
   - `index.html`: UIの主要な構造。
-  - `assets/style.css`: UIのスタイル。
-  - `assets/script.js`: WebSocket通信と動的なDOM操作のためのクライアントサイドロジック。
-  - `assets/charts.js`: `Chart.js` を用いたスパークライン描画ロジック。
+  - `assets/style.css`: UIのスタイルシート。
+  - `assets/main.js`: クライアントサイドのメインスクリプト。アプリケーションの初期化を行う。
+  - `assets/uiUpdater.js`: UIの更新ロジックをカプセル化したモジュール。
+  - `assets/websocketClient.js`: WebSocket通信を管理するモジュール。
 
 ## 2. 主要なシーケンス
 
@@ -75,26 +76,6 @@ deactivate Processor
 @enduml
 ```
 
-```plantuml
-@startuml
-!theme plain
-title レイアウト変更シーケンス
-
-participant "クライアント (ブラウザ)" as Client
-participant "server.js" as Server
-database "db.json" as DB
-participant "他のクライアント" as OtherClient
-
-Client -> Client: D&Dでレイアウト変更
-Client -> Server: layout_update (順序情報)
-activate Server
-Server -> Server: レイアウト情報をメモリ更新
-Server -> DB: レイアウト情報を保存
-Server -> OtherClient: broadcast(layout_apply)
-deactivate Server
-@enduml
-```
-
 ### OBS録画状態変更シーケンス
 
 OBSの録画イベントが処理されUIに反映される流れを以下のシーケンス図に示す。
@@ -140,13 +121,15 @@ title レイアウト変更シーケンス
 
 participant "クライアント (ブラウザ)" as Client
 participant "server.js" as Server
+database "db.json" as DB
 participant "他のクライアント" as OtherClient
 
 Client -> Client: D&Dでレイアウト変更
-Client -> Server: レイアウト情報
+Client -> Server: layout_update (順序情報)
 activate Server
-Server -> Server: レイアウト情報を保持
-Server -> OtherClient: broadcast(レイアウト情報)
+Server -> Server: レイアウト情報をメモリ更新
+Server -> DB: レイアウト情報を保存
+Server -> OtherClient: broadcast(layout_apply)
 deactivate Server
 @enduml
 ```
