@@ -85,7 +85,7 @@ function updateUI(state) {
 
     // --- スパークラインの更新 ---
     if (window.chartUtils && window.Chart && state.bounty.bountyHistory && (!oldStateExists || JSON.stringify(state.bounty.bountyHistory) !== JSON.stringify(previousState.bounty.bountyHistory))) {
-        window.chartUtils.createOrUpdateSparkline('bounty-sparkline', state.bounty.bountyHistory);
+        window.chartUtils.createOrUpdateSparkline('bounty-sparkline', state.bounty.bountyHistory, { title: 'Bounty (Last 10 Kills)' });
     }
 
     // --- Update Exploration Summary ---
@@ -187,7 +187,7 @@ function updateUI(state) {
 
     // --- スパークラインの更新 ---
     if (window.chartUtils && window.Chart && state.trading.tradingProfitHistory && (!oldStateExists || JSON.stringify(state.trading.tradingProfitHistory) !== JSON.stringify(previousState.trading.tradingProfitHistory))) {
-        window.chartUtils.createOrUpdateSparkline('trading-sparkline', state.trading.tradingProfitHistory);
+        window.chartUtils.createOrUpdateSparkline('trading-sparkline', state.trading.tradingProfitHistory, { title: 'Profit History (Last 10 Trades)' });
     }
 
     // --- Update Rank Progression ---
@@ -195,7 +195,11 @@ function updateUI(state) {
 
     // --- Update Fuel Graph ---
     if (window.chartUtils && window.Chart && state.fuel && state.fuel.history && (!oldStateExists || JSON.stringify(state.fuel.history) !== JSON.stringify(previousState.fuel.history))) {
-        window.chartUtils.createOrUpdateSparkline('fuel-sparkline', state.fuel.history, { max: state.fuel.max });
+        // Zero fill
+        while(state.fuel.history.length < 60) {
+            state.fuel.history.unshift(0);
+        }
+        window.chartUtils.createOrUpdateSparkline('fuel-sparkline', state.fuel.history, { max: state.fuel.max, title: 'Fuel Level (Last 60 min)' });
     }
 
     // 現在の状態を次の比較のためにディープコピーして保存
