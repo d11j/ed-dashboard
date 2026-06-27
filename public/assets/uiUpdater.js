@@ -39,7 +39,7 @@ function formatNumber(num) {
     if (absNum >= 1e3) {
         return sign + (absNum / 1e3).toFixed(percisiton) + 'K';
     }
-    return sign + num.toLocaleString();
+    return sign + absNum.toLocaleString();
 }
 
 /**
@@ -196,7 +196,7 @@ function updateUI(state) {
     // --- Update Fuel Graph ---
     if (window.chartUtils && window.Chart && state.fuel && state.fuel.history && (!oldStateExists || JSON.stringify(state.fuel.history) !== JSON.stringify(previousState.fuel.history))) {
         // Zero fill
-        while(state.fuel.history.length < 60) {
+        while (state.fuel.history.length < 60) {
             state.fuel.history.unshift(0);
         }
         window.chartUtils.createOrUpdateSparkline('fuel-sparkline', state.fuel.history, { max: state.fuel.max, title: 'Fuel Level (Last 60 min)' });
