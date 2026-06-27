@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node --env-file=.env server.js",
     "lint": "eslint .",
-    "lint:fix": "eslint . --fix"
+    "lint:fix": "eslint . --fix",
+    "test": "vitest run",
+    "simulate": "node --env-file=.env bin/simulator.js",
+    "test:coverage": "vitest run --coverage"
   },
   "type": "module",
   "dependencies": {
@@ -19,6 +22,9 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "eslint": "^10.6.0",
-    "globals": "^17.7.0"
+    "globals": "^17.7.0",
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.9"
   }
 }

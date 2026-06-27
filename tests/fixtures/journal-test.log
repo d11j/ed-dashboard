@@ -1,0 +1,53 @@
+{"timestamp":"2026-06-27T12:00:00Z", "event":"LoadGame", "Docked":true, "Ship":"ferdelance", "ShipID":1, "ShipName":"Test Defender", "FuelCapacity":32.0, "FuelLevel":32.0}
+{"timestamp":"2026-06-27T12:00:05Z", "event":"Location", "Docked":true, "StationName":"Sol Station", "StarSystem":"Sol", "Factions":[{"Name":"Sol Nation", "Allegiance":"Federation"}]}
+{"timestamp":"2026-06-27T12:00:10Z", "event":"Undocked", "StationName":"Sol Station"}
+
+{"timestamp":"2026-06-27T12:00:20Z", "event":"Progress", "Combat":10, "Trade":80, "Explore":30, "Soldier":0, "Exobiologist":0, "Federation":5, "Empire":2}
+{"timestamp":"2026-06-27T12:00:25Z", "event":"Rank", "Combat":3, "Trade":4, "Explore":2, "Federation":2, "Empire":1}
+
+{"timestamp":"2026-06-27T12:01:00Z", "event":"FSDJump", "StarSystem":"Alpha Centauri", "JumpDist":4.3, "Factions":[{"Name":"Centauri Org", "Allegiance":"Empire"}]}
+{"timestamp":"2026-06-27T12:01:20Z", "event":"Scan", "ScanType":"Detailed", "BodyName":"Alpha Centauri A 1", "PlanetClass":"Earthlike body", "WasDiscovered":false, "WasMapped":false}
+{"timestamp":"2026-06-27T12:01:40Z", "event":"Scan", "ScanType":"Detailed", "BodyName":"Alpha Centauri A 2", "PlanetClass":"Water world", "WasDiscovered":false, "WasMapped":false}
+
+{"timestamp":"2026-06-27T12:02:00Z", "event":"FSDJump", "StarSystem":"Barnard's Star", "JumpDist":6.0, "Factions":[{"Name":"Barnard Co", "Allegiance":"Independent"}]}
+{"timestamp":"2026-06-27T12:02:20Z", "event":"Scan", "ScanType":"Detailed", "BodyName":"Barnards Star 1", "PlanetClass":"Ammonia world", "WasDiscovered":false, "WasMapped":false}
+{"timestamp":"2026-06-27T12:02:40Z", "event":"Scan", "ScanType":"Detailed", "BodyName":"Barnards Star 2", "PlanetClass":"High metal content body", "TerraformState":"Terraformable", "WasDiscovered":false, "WasMapped":false}
+
+{"timestamp":"2026-06-27T12:03:00Z", "event":"MarketBuy", "Count":10, "BuyPrice":100, "Type":"gold"}
+{"timestamp":"2026-06-27T12:03:10Z", "event":"MarketSell", "Count":10, "TotalSale":2000, "Type":"gold"}
+{"timestamp":"2026-06-27T12:03:20Z", "event":"MarketBuy", "Count":5, "BuyPrice":500, "Type":"silver"}
+{"timestamp":"2026-06-27T12:03:30Z", "event":"MarketSell", "Count":5, "TotalSale":1500, "Type":"silver"}
+{"timestamp":"2026-06-27T12:03:40Z", "event":"MarketBuy", "Count":20, "BuyPrice":150, "Type":"copper"}
+{"timestamp":"2026-06-27T12:03:50Z", "event":"MarketSell", "Count":20, "TotalSale":8000, "Type":"copper"}
+{"timestamp":"2026-06-27T12:04:00Z", "event":"MarketBuy", "Count":10, "BuyPrice":1000, "Type":"bauxite"}
+{"timestamp":"2026-06-27T12:04:10Z", "event":"MarketSell", "Count":10, "TotalSale":2000, "Type":"bauxite"}
+{"timestamp":"2026-06-27T12:04:20Z", "event":"MarketBuy", "Count":5, "BuyPrice":100, "Type":"water"}
+{"timestamp":"2026-06-27T12:04:30Z", "event":"MarketSell", "Count":5, "TotalSale":15000, "Type":"water"}
+
+{"timestamp":"2026-06-27T12:05:00Z", "event":"ShipTargeted", "TargetLocked":true, "PilotName":"NPC_Harmless", "PilotRank":0}
+{"timestamp":"2026-06-27T12:05:10Z", "event":"Bounty", "Rewards":[{"Faction":"Federation", "Reward":10000}], "Target":"sidewinder", "PilotName":"NPC_Harmless"}
+{"timestamp":"2026-06-27T12:05:20Z", "event":"ShipTargeted", "TargetLocked":true, "PilotName":"NPC_Novice", "PilotRank":2}
+{"timestamp":"2026-06-27T12:05:30Z", "event":"Bounty", "Rewards":[{"Faction":"Federation", "Reward":20000}], "Target":"adder", "PilotName":"NPC_Novice"}
+{"timestamp":"2026-06-27T12:05:40Z", "event":"ShipTargeted", "TargetLocked":true, "PilotName":"NPC_Expert", "PilotRank":4}
+{"timestamp":"2026-06-27T12:05:50Z", "event":"Bounty", "Rewards":[{"Faction":"Federation", "Reward":40000}], "Target":"cobramkiii", "PilotName":"NPC_Expert"}
+{"timestamp":"2026-06-27T12:06:00Z", "event":"ShipTargeted", "TargetLocked":true, "PilotName":"NPC_Dangerous", "PilotRank":6}
+{"timestamp":"2026-06-27T12:06:10Z", "event":"Bounty", "Rewards":[{"Faction":"Federation", "Reward":80000}], "Target":"viper", "PilotName":"NPC_Dangerous"}
+{"timestamp":"2026-06-27T12:06:20Z", "event":"ShipTargeted", "TargetLocked":true, "PilotName":"NPC_Deadly", "PilotRank":7}
+{"timestamp":"2026-06-27T12:06:30Z", "event":"Bounty", "Rewards":[{"Faction":"Federation", "Reward":120000}], "Target":"ferdelance", "PilotName":"NPC_Deadly"}
+{"timestamp":"2026-06-27T12:06:40Z", "event":"ShipTargeted", "TargetLocked":true, "PilotName":"NPC_Elite", "PilotRank":8}
+{"timestamp":"2026-06-27T12:06:50Z", "event":"Bounty", "Rewards":[{"Faction":"Federation", "Reward":200000}], "Target":"python", "PilotName":"NPC_Elite"}
+{"timestamp":"2026-06-27T12:07:00Z", "event":"ShipTargeted", "TargetLocked":true, "PilotName":"NPC_EliteV", "PilotRank":13}
+{"timestamp":"2026-06-27T12:07:10Z", "event":"Bounty", "Rewards":[{"Faction":"Federation", "Reward":500000}], "Target":"anaconda", "PilotName":"NPC_EliteV"}
+
+{"timestamp":"2026-06-27T12:08:00Z", "event":"MaterialCollected", "Category":"Raw", "Name":"iron", "Name_Localised":"Iron", "Count":3}
+{"timestamp":"2026-06-27T12:08:10Z", "event":"MaterialCollected", "Category":"Raw", "Name":"nickel", "Name_Localised":"Nickel", "Count":3}
+{"timestamp":"2026-06-27T12:08:20Z", "event":"MaterialCollected", "Category":"Raw", "Name":"carbon", "Name_Localised":"Carbon", "Count":3}
+{"timestamp":"2026-06-27T12:08:30Z", "event":"MaterialCollected", "Category":"Raw", "Name":"sulphur", "Name_Localised":"Sulphur", "Count":3}
+{"timestamp":"2026-06-27T12:08:40Z", "event":"MaterialCollected", "Category":"Raw", "Name":"phosphorus", "Name_Localised":"Phosphorus", "Count":3}
+{"timestamp":"2026-06-27T12:08:50Z", "event":"MaterialCollected", "Category":"Raw", "Name":"chromium", "Name_Localised":"Chromium", "Count":3}
+{"timestamp":"2026-06-27T12:09:00Z", "event":"MaterialCollected", "Category":"Raw", "Name":"manganese", "Name_Localised":"Manganese", "Count":3}
+
+{"timestamp":"2026-06-27T12:10:00Z", "event":"Progress", "Combat":15, "Trade":99, "Explore":35, "Soldier":0, "Exobiologist":0, "Federation":10, "Empire":5}
+{"timestamp":"2026-06-27T12:10:30Z", "event":"Promotion", "Trade":5}
+
+{"timestamp":"2026-06-27T12:11:00Z", "event":"Music", "MusicTrack":"MainMenu"}

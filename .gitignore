@@ -3,6 +3,7 @@
 *.log
 *.sql
 *.sqlite
+db.json
 
 # OS-generated files #
 ######################
@@ -47,3 +48,7 @@ pids/
 *.key
 credentials.*
 
+# Test #
+########
+!tests/fixtures/*
+coverage/
