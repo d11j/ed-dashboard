@@ -317,3 +317,5 @@ server.listen(PORT, () => {
     console.log(`ダッシュボードを開く: http://localhost:${PORT}`);
     connectToOBSAtStartup(); // OBSへの接続を開始
 });
+
+export { app, server, wss, journalProcessor, db };
