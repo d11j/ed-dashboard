@@ -27,8 +27,12 @@
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getInitialState } from '../../src/utils.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // テスト用の一時ディレクトリを設定
 const tempDir = path.join(os.tmpdir(), 'ed-dashboard-test-journals');
@@ -168,5 +172,66 @@ describe('JournalProcessor', () => {
         // パイロットランクが数値から名称 (Dangerous) にデコードされていることを検証
         expect(state.bounty.ranks['Dangerous']).toBe(1);
     }, 15000); // タイムアウトを15秒に設定 (Chokidarのファイル書き込み監視待機のため余裕を持たせる)
+
+    it('should process the full journal-test.log and correctly aggregate state', async () => {
+        // --- 1. Arrange: 監視開始前に、あらかじめ journal-test.log の内容をコピーしておく ---
+        const fixturePath = path.join(__dirname, '../fixtures/journal-test.log');
+        const fixtureContent = fs.readFileSync(fixturePath, 'utf-8');
+        fs.writeFileSync(logFilePath, fixtureContent, 'utf-8');
+
+        const nextUpdate = () => {
+            return new Promise((resolve) => {
+                processor.once('update', (state) => {
+                    resolve(state);
+                });
+            });
+        };
+
+        // --- 2. Act: 監視を開始する (Chokidarは既存のファイルをスキャンして一括処理する) ---
+        processor.startMonitoring();
+
+        // 初回ロード完了による最初の update を待つ
+        const finalState = await nextUpdate();
+
+        // --- 3. Assert: 網羅テストデータの解析結果を検証 ---
+        // (1) 探索関連の検証
+        expect(finalState.exploration.jumpCount).toBe(2);
+        expect(finalState.exploration.jumpDistance).toBeCloseTo(10.3); // 4.3 + 6.0
+        expect(finalState.exploration.totalScans).toBe(6);
+        expect(finalState.exploration.highValueScans).toBe(6);
+        expect(finalState.exploration.estimatedValue).toBe(11600000); // 2*300万(ELW) + 2*100万(WW) + 160万(AW) + 200万(Terraformable)
+        expect(finalState.exploration.valuableBodyFound).toEqual({
+            elw: true,
+            ww: true,
+            aw: true,
+            terraformable: true
+        });
+
+        // (2) 交易関連の検証
+        expect(finalState.trading.totalBuy).toBe(17000);
+        expect(finalState.trading.totalSell).toBe(28500);
+        expect(finalState.trading.sellCount).toBe(5);
+        expect(finalState.trading.unitsSold).toBe(50);
+        expect(finalState.trading.profit).toBe(11500);
+
+        // (3) 戦闘関連の検証
+        expect(finalState.bounty.count).toBe(7);
+        expect(finalState.bounty.totalRewards).toBe(970000);
+        expect(finalState.bounty.targets['Sidewinder']).toBe(1);
+        expect(finalState.bounty.targets['Python']).toBe(1);
+        expect(finalState.bounty.ranks['Harmless']).toBe(1);
+        expect(finalState.bounty.ranks['Elite V']).toBe(1);
+
+        // (4) マテリアル関連の検証
+        expect(finalState.materials.total).toBe(21);
+        expect(finalState.materials.categories['Raw']).toBe(21);
+        expect(finalState.materials.details['Raw']['Iron']).toBe(3);
+
+        // (5) ランク進行度の検証
+        expect(finalState.progress.Combat.rank).toBe(3);
+        expect(finalState.progress.Combat.progress).toBe(15);
+        expect(finalState.progress.Trade.rank).toBe(5);
+        expect(finalState.progress.Trade.progress).toBe(0); // Promotionにより0にリセット
+    }, 15000);
 });
 

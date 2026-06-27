@@ -39,6 +39,14 @@ import WebSocket from 'ws';
 
 // --- 1. Arrange: 外部モジュール・依存関係のモック設定 (インポート前に行う必要があります) ---
 
+// vi.hoistedを使ってモック関数を定義
+const { mockLowRead, mockLowWrite } = vi.hoisted(() => {
+    return {
+        mockLowRead: vi.fn().mockResolvedValue(undefined),
+        mockLowWrite: vi.fn().mockResolvedValue(undefined)
+    };
+});
+
 // lowdb のモック (テスト環境の db.json を書き換えないようにインメモリで動作させる)
 vi.mock('lowdb', () => {
     return {
@@ -46,8 +54,8 @@ vi.mock('lowdb', () => {
             constructor(adapter, defaultData) {
                 this.data = defaultData;
             }
-            read = vi.fn().mockResolvedValue(undefined);
-            write = vi.fn().mockResolvedValue(undefined);
+            read = mockLowRead;
+            write = mockLowWrite;
         }
     };
 });
@@ -98,7 +106,10 @@ http.Server.prototype.listen = function (...args) {
 
 // サーバーモジュールを動的にインポートして起動する
 // これにより上記の listen フックが機能し、ポート 0 で Express サーバーが起動します
-await import('../../server.js');
+let journalProcessor;
+await import('../../server.js').then((mod) => {
+    journalProcessor = mod.journalProcessor;
+});
 
 describe('Server Integration', () => {
     beforeAll(async () => {
@@ -178,6 +189,105 @@ describe('Server Integration', () => {
         expect(messages.some(m => m.type === 'full_update')).toBe(true);
         expect(messages.some(m => m.type === 'log_update')).toBe(true);
         expect(messages.some(m => m.type === 'layout_apply')).toBe(true);
+    });
+
+    it('should handle layout_update message and write to DB', async () => {
+        // 1. Arrange: WebSocketクライアント接続と layout_update ペイロードの準備
+        const client = new WebSocket(`ws://localhost:${allocatedPort}`);
+        await new Promise((resolve) => client.on('open', resolve));
+
+        // mock lowdb write の呼び出し履歴をリセット
+        mockLowWrite.mockClear();
+
+        const payload = {
+            type: 'layout_update',
+            payload: {
+                'left-column': ['mission'],
+                'right-column': ['combat']
+            }
+        };
+
+        // 2. Act: layout_update メッセージをサーバーに送信
+        client.send(JSON.stringify(payload));
+
+        // 処理の非同期遅延（DB書き込み）を少し待機
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        // 3. Assert: DB書き込みメソッド (lowdb.write) が呼ばれたか検証
+        expect(mockLowWrite).toHaveBeenCalled();
+        client.close();
+    });
+
+    it('should handle reset_stats message and save session to DB', async () => {
+        // 1. Arrange: 時間モックを有効化し（Dateのみモックしてタイマーは動かす）、システム時刻を2時間進めてセッション保存条件(>0.01h)を満たす
+        vi.useFakeTimers({ toFake: ['Date'] });
+
+        // セッション開始時刻を設定するため一度リセット状態にする
+        const { getInitialState } = await import('../../src/utils.js');
+        journalProcessor.resetState(getInitialState());
+
+        const now = new Date();
+        vi.setSystemTime(now);
+        vi.setSystemTime(new Date(now.getTime() + 2 * 60 * 60 * 1000)); // 2時間進める
+
+        const client = new WebSocket(`ws://localhost:${allocatedPort}`);
+        await new Promise((resolve) => client.on('open', resolve));
+
+        mockLowWrite.mockClear();
+
+        const payload = {
+            type: 'reset_stats'
+        };
+
+        // 2. Act: reset_stats メッセージをサーバーに送信
+        client.send(JSON.stringify(payload));
+
+        // セッション永続化とリセット処理の非同期完了を待機
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        // 3. Assert: 十分なセッション時間があるため、セッション保存 (lowdb.write) が実行されることを検証
+        expect(mockLowWrite).toHaveBeenCalled();
+        client.close();
+
+        // リアルタイムタイマーを復元
+        vi.useRealTimers();
+    });
+
+    it('should handle get_history message and return history data', async () => {
+        // 1. Arrange: WebSocket接続と受信待機の準備
+        const client = new WebSocket(`ws://localhost:${allocatedPort}`);
+        await new Promise((resolve) => client.on('open', resolve));
+
+        const getHistoryPayload = {
+            type: 'get_history'
+        };
+
+        const waitForHistory = () => {
+            return new Promise((resolve, reject) => {
+                const timeout = setTimeout(() => {
+                    client.close();
+                    reject(new Error('Timeout waiting for history_data'));
+                }, 3000);
+
+                client.on('message', (data) => {
+                    const msg = JSON.parse(data);
+                    // get_history に対する返信タイプは history_data
+                    if (msg.type === 'history_data') {
+                        clearTimeout(timeout);
+                        client.close();
+                        resolve(msg);
+                    }
+                });
+            });
+        };
+
+        // 2. Act: get_history を送信し、レスポンスを待つ
+        client.send(JSON.stringify(getHistoryPayload));
+        const response = await waitForHistory();
+
+        // 3. Assert: 返ってきたデータ構造が正しいか検証 (モックDBのデフォルト履歴配列)
+        expect(response).toHaveProperty('payload');
+        expect(Array.isArray(response.payload)).toBe(true);
     });
 });
 

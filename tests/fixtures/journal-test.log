@@ -12,6 +12,8 @@
 {"timestamp":"2026-06-27T12:02:00Z", "event":"FSDJump", "StarSystem":"Barnard's Star", "JumpDist":6.0, "Factions":[{"Name":"Barnard Co", "Allegiance":"Independent"}]}
 {"timestamp":"2026-06-27T12:02:20Z", "event":"Scan", "ScanType":"Detailed", "BodyName":"Barnards Star 1", "PlanetClass":"Ammonia world", "WasDiscovered":false, "WasMapped":false}
 {"timestamp":"2026-06-27T12:02:40Z", "event":"Scan", "ScanType":"Detailed", "BodyName":"Barnards Star 2", "PlanetClass":"High metal content body", "TerraformState":"Terraformable", "WasDiscovered":false, "WasMapped":false}
+{"timestamp":"2026-06-27T12:02:45Z", "event":"Scan", "ScanType":"Detailed", "BodyName":"Barnards Star 3", "PlanetClass":"Earthlike body", "WasDiscovered":false, "WasMapped":false}
+{"timestamp":"2026-06-27T12:02:50Z", "event":"Scan", "ScanType":"Detailed", "BodyName":"Barnards Star 4", "PlanetClass":"Water world", "WasDiscovered":false, "WasMapped":false}
 
 {"timestamp":"2026-06-27T12:03:00Z", "event":"MarketBuy", "Count":10, "BuyPrice":100, "Type":"gold"}
 {"timestamp":"2026-06-27T12:03:10Z", "event":"MarketSell", "Count":10, "TotalSale":2000, "Type":"gold"}
