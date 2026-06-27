@@ -1,6 +1,6 @@
 # ED Dashboard
 
-設計資料本資料は、Elite: Dangerous リアルタイムダッシュボードのソフトウェアアーキテクチャ、主要なプロセス、およびAPI仕様の概要を記述する。
+本資料は、Elite: Dangerous リアルタイムダッシュボードのソフトウェアアーキテクチャ、主要なプロセス、およびAPI仕様の概要を記述する。
 
 ## 1. アーキテクチャ概要
 
@@ -12,6 +12,7 @@
   - クライアントとのWebSocket接続の管理。
   - OBS WebSocketサーバーとの通信のハンドリング。
   - `JournalProcessor`から発行されるイベント（`update`, `logUpdate`など）をリッスンし、整形済みデータをクライアントにブロードキャストする。
+  - `lowdb` を使用したデータの永続化（読み書き）管理。
 - `src/journalProcessor.js`: アプリケーションのコアロジックモジュールとなる。クラスとして実装されており、ジャーナル処理に関連するすべてのロジックをカプセル化している。責務を以下に示す。
   - `chokidar` を用いたElite: Dangerousのジャーナルディレクトリのファイル変更監視。
   - ジャーナルエントリと Status.json をパースし、アプリケーションの状態を更新。
@@ -20,10 +21,17 @@
 - `src/constants.js`: アプリケーション全体で利用される定数をエクスポートするモジュールとなる。これには以下が含まれる。
   - PORT などのサーバー設定。
   - パイロットのランク定義（FED_RANKS, COMBAT_RANKS など）といった静的なゲームデータ。
+- `src/utils.js`: アプリケーション全体で利用されるヘルパー関数を提供するモジュール。責務を以下に示す。
+  - ジャーナルファイルのパス解決。
+  - 日付や数値のフォーマット処理。
+- `db.json`: アプリケーションの設定（レイアウト）および過去のセッション統計を保持するローカルJSONデータベースファイル。
 - `public/`: クライアントサイドのすべての静的アセットを格納するディレクトリ。
   - `index.html`: UIの主要な構造。
-  - `assets/style.css`: UIのスタイル。
-  - `assets/script.js`: WebSocket通信と動的なDOM操作のためのクライアントサイドロジック。
+  - `assets/style.css`: UIのスタイルシート。
+  - `assets/main.js`: クライアントサイドのメインスクリプト。アプリケーションの初期化を行う。
+  - `assets/uiUpdater.js`: UIの更新ロジックをカプセル化したモジュール。
+  - `assets/websocketClient.js`: WebSocket通信を管理するモジュール。
+  - `assets/chart.js` : 埋め込みグラフを管理するモジュール
 
 ## 2. 主要なシーケンス
 
@@ -117,13 +125,15 @@ title レイアウト変更シーケンス
 
 participant "クライアント (ブラウザ)" as Client
 participant "server.js" as Server
+database "db.json" as DB
 participant "他のクライアント" as OtherClient
 
 Client -> Client: D&Dでレイアウト変更
-Client -> Server: レイアウト情報
+Client -> Server: layout_update (順序情報)
 activate Server
-Server -> Server: レイアウト情報を保持
-Server -> OtherClient: broadcast(レイアウト情報)
+Server -> Server: レイアウト情報をメモリ更新
+Server -> DB: レイアウト情報を保存
+Server -> OtherClient: broadcast(layout_apply)
 deactivate Server
 @enduml
 ```
@@ -174,6 +184,7 @@ deactivate Server
 | full_update | 最新の統計情報をすべて送信する。クライアントの初回接続時や状態リセット後に送信される。| `{ "bounty": { "count": 10, ... }, ... }` |
 | log_update | 更新されたイベントログの配列を送信する。| `["[00:00:00] -- 録画開始 --"]`|
 | obs_recording_state | OBSの録画ステータスの変更をクライアントに通知する。 | `{ "isRecording": true }`| 
+| history_update | 過去のセッション履歴を送信する。 | `[{ "date": "2023-10-27", "profit": 100000, ... }]` |
 | layout_apply | レイアウトの更新を通知する。 | `{'left-column': ['rank-progression', ...], 'right-column': ['combat', ...]}` |
 
 ### 4.3. クライアントからサーバーへのメッセージ
@@ -183,6 +194,40 @@ deactivate Server
 | 種別 | 説明 | ペイロード |
 |:--- |:---|:---|
 | reset_stats | サーバーにすべての統計データのリセットを要求する。 | `null` |
+| get_history | サーバーに過去のセッション履歴の取得を要求する。 | `null` |
 | start_obs_recording | サーバーにOBSの録画開始を要求する。 | `null` |
 | stop_obs_recording | サーバーにOBSの録画停止を要求する。 | `null` |
 | layout_update | レイアウトの変更をサーバに通知する。 | `{'left-column': ['rank-progression', ...], 'right-column': ['combat', ...]}` |
+
+## 5. 永続化と可視化 (Persistence & Visualization)
+
+本セクションでは、ユーザー体験を向上させるためのデータ永続化と可視化機能の設計について記述する。
+
+### 5.1. データ永続化 (Persistence)
+
+`lowdb` ライブラリを使用し、軽量なJSONデータベース `db.json` を用いて以下のデータを管理する。
+
+#### 保存対象データ
+
+1.  **レイアウト設定 (`layout`)**:
+      * ユーザーがカスタマイズしたカードの並び順（`cardOrder`）。
+      * `layout_update` イベント受信時に保存し、サーバー起動時およびクライアント接続時に読み込む。
+2.  **セッション履歴 (`history`)**:
+      * 過去のセッション統計（日付、総利益、撃墜数、探索スキャン数など）。
+      * アプリケーション終了時（`SIGINT`等）や日付変更時に、現在のセッション統計をコミットする。
+      * 次回起動時に「前回セッションとの比較（例: 前日比）」を表示するために使用する。
+
+### 5.2. データ可視化 (Visualization)
+
+UIの視認性を損なわず、数値の傾向を把握可能にするため、**スパークライン（Sparkline）** を導入する。
+
+#### 実装方針
+
+  * **ライブラリ**: `Chart.js` を使用する。
+  * **デザイン**:
+      * 軸（Scales）、凡例（Legend）、グリッド線をすべて非表示にする。
+      * 線（Line）または棒（Bar）のみをミニマルに描画する。
+      * 配色は現在のテーマカラー（オレンジ）をベースとし、透明度を下げて数値情報を阻害しないようにする。
+  * **適用箇所**:
+      * **Combat Summary**: 賞金獲得額の推移（直近10件程度）。
+      * **Trading Summary**: 取引ごとの利益率の推移。

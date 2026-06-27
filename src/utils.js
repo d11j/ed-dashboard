@@ -18,7 +18,8 @@ export function getInitialState() {
             count: 0,
             totalRewards: 0,
             targets: {},
-            ranks: {}
+            ranks: {},
+            bountyHistory: [] // 直近の賞金額
         },
         materials: {
             total: 0,
@@ -51,6 +52,7 @@ export function getInitialState() {
             sellCount: 0,
             unitsSold: 0,
             profit: 0,
+            tradingProfitHistory: [] // 取引ごとの利益の推移
         },
         progress: {
             Combat: { rank: 0, name: COMBAT_RANKS[0], progress: 0, nextName: COMBAT_RANKS[1] },
@@ -61,6 +63,11 @@ export function getInitialState() {
             CQC: { rank: 0, name: CQC_RANKS[0], progress: 0, nextName: CQC_RANKS[1] },
             Soldier: { rank: 0, name: SOLDIER_RANKS[0], progress: 0, nextName: SOLDIER_RANKS[1] },
             Exobiologist: { rank: 0, name: EXOBIOLOGIST_RANKS[0], progress: 0, nextName: EXOBIOLOGIST_RANKS[1] }
+        },
+        fuel: {
+            current: 0,
+            max: 32, // Default, will be updated by Loadout event
+            history: []
         }
     });
 };

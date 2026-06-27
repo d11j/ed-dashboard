@@ -2,6 +2,7 @@ let previousState = null;
 
 const statusIndicator = document.getElementById('status-indicator');
 const recordButton = document.getElementById('record-button');
+const resumeButton = document.getElementById('resume-session-button');
 const logDisplay = document.getElementById('event-log-display');
 
 /**
@@ -48,6 +49,9 @@ function formatNumber(num) {
 function updateUI(state) {
     if (!state) { return; }
 
+    // --- Update Button States ---
+    resumeButton.disabled = !state.isResumable;
+
     const oldStateExists = !!previousState;
 
     // --- Update Last Update Time ---
@@ -78,6 +82,11 @@ function updateUI(state) {
 
     updateKillsTable('bounty-ranks-table', state.bounty.ranks, oldStateExists ? previousState.bounty.ranks : {});
     updateGenericTable('bounty-targets-table', state.bounty.targets, oldStateExists ? previousState.bounty.targets : {}, ['Target', 'Kills']);
+
+    // --- スパークラインの更新 ---
+    if (window.chartUtils && window.Chart && state.bounty.bountyHistory && (!oldStateExists || JSON.stringify(state.bounty.bountyHistory) !== JSON.stringify(previousState.bounty.bountyHistory))) {
+        window.chartUtils.createOrUpdateSparkline('bounty-sparkline', state.bounty.bountyHistory, { title: 'Rewards (Last 10 Kills)' });
+    }
 
     // --- Update Exploration Summary ---
     updateScanIndicators(state.exploration.valuableBodyFound);
@@ -176,8 +185,22 @@ function updateUI(state) {
     // }
     profitPerHourEl.textContent = state.trading.profitPerHour === null ? 'N/A' : formatNumber(state.trading.profitPerHour);
 
+    // --- スパークラインの更新 ---
+    if (window.chartUtils && window.Chart && state.trading.tradingProfitHistory && (!oldStateExists || JSON.stringify(state.trading.tradingProfitHistory) !== JSON.stringify(previousState.trading.tradingProfitHistory))) {
+        window.chartUtils.createOrUpdateSparkline('trading-sparkline', state.trading.tradingProfitHistory, { title: 'Profit History (Last 10 Trades)' });
+    }
+
     // --- Update Rank Progression ---
     updateProgressBars('progress-container', state.progress, oldStateExists ? previousState.progress : null);
+
+    // --- Update Fuel Graph ---
+    if (window.chartUtils && window.Chart && state.fuel && state.fuel.history && (!oldStateExists || JSON.stringify(state.fuel.history) !== JSON.stringify(previousState.fuel.history))) {
+        // Zero fill
+        while(state.fuel.history.length < 60) {
+            state.fuel.history.unshift(0);
+        }
+        window.chartUtils.createOrUpdateSparkline('fuel-sparkline', state.fuel.history, { max: state.fuel.max, title: 'Fuel Level (Last 60 min)' });
+    }
 
     // 現在の状態を次の比較のためにディープコピーして保存
     previousState = JSON.parse(JSON.stringify(state));
