@@ -81,6 +81,7 @@ describe('JournalProcessor', () => {
     afterEach(() => {
         // --- 監視停止とクリーンアップ ---
         if (processor) {
+            processor.stopMonitoring();
             // テストごとの多重登録を防ぐため、イベントリスナーを全て解除
             processor.removeAllListeners();
         }
@@ -232,6 +233,163 @@ describe('JournalProcessor', () => {
         expect(finalState.progress.Combat.progress).toBe(15);
         expect(finalState.progress.Trade.rank).toBe(5);
         expect(finalState.progress.Trade.progress).toBe(0); // Promotionにより0にリセット
+
+        // (6) 旅客・救出ミッション統計の検証
+        expect(finalState.missions.passengersOnBoard).toBe(0);
+        expect(finalState.missions.passengersTransported).toBe(16);
+        expect(finalState.missions.isRescueMissionActive).toBe(false);
+    }, 15000);
+
+    it('should track passenger missions correctly', async () => {
+        const nextUpdate = () => {
+            return new Promise((resolve) => {
+                processor.once('update', (state) => {
+                    resolve(state);
+                });
+            });
+        };
+
+        processor.startMonitoring();
+        let state = await nextUpdate();
+
+        // 1. 通常の旅客ミッション受注
+        const acceptPassenger = {
+            timestamp: new Date().toISOString(),
+            event: 'MissionAccepted',
+            Name: 'Mission_PassengerVIP',
+            PassengerCount: 3,
+            MissionID: 1001,
+            Faction: 'Test Faction'
+        };
+        fs.appendFileSync(logFilePath, JSON.stringify(acceptPassenger) + '\n', 'utf-8');
+        state = await nextUpdate();
+
+        expect(state.missions.passengersOnBoard).toBe(3);
+        expect(state.missions.passengersTransported).toBe(0);
+        expect(state.missions.isRescueMissionActive).toBe(false);
+
+        // 2. もう一つ旅客ミッション受注
+        const acceptPassenger2 = {
+            timestamp: new Date().toISOString(),
+            event: 'MissionAccepted',
+            Name: 'Mission_PassengerBulk',
+            PassengerCount: 10,
+            MissionID: 1002,
+            Faction: 'Test Faction'
+        };
+        fs.appendFileSync(logFilePath, JSON.stringify(acceptPassenger2) + '\n', 'utf-8');
+        state = await nextUpdate();
+
+        expect(state.missions.passengersOnBoard).toBe(13);
+
+        // 3. 1つ目の旅客ミッション完了
+        const completePassenger = {
+            timestamp: new Date().toISOString(),
+            event: 'MissionCompleted',
+            Name: 'Mission_PassengerVIP_name',
+            MissionID: 1001,
+            Faction: 'Test Faction'
+        };
+        fs.appendFileSync(logFilePath, JSON.stringify(completePassenger) + '\n', 'utf-8');
+        state = await nextUpdate();
+
+        expect(state.missions.passengersOnBoard).toBe(10);
+        expect(state.missions.passengersTransported).toBe(3);
+
+        // 4. 2つ目の旅客ミッション失敗
+        const failPassenger = {
+            timestamp: new Date().toISOString(),
+            event: 'MissionFailed',
+            Name: 'Mission_PassengerBulk_name',
+            MissionID: 1002
+        };
+        fs.appendFileSync(logFilePath, JSON.stringify(failPassenger) + '\n', 'utf-8');
+        state = await nextUpdate();
+
+        expect(state.missions.passengersOnBoard).toBe(0);
+        expect(state.missions.passengersTransported).toBe(3);
+    }, 15000);
+
+    it('should track rescue missions and toggle label flag', async () => {
+        const nextUpdate = () => {
+            return new Promise((resolve) => {
+                processor.once('update', (state) => {
+                    resolve(state);
+                });
+            });
+        };
+
+        processor.startMonitoring();
+        let state = await nextUpdate();
+
+        // 1. 救出ミッション受注 (Countフィールドによる乗客数指定)
+        const acceptRescue = {
+            timestamp: new Date().toISOString(),
+            event: 'MissionAccepted',
+            Name: 'Mission_TW_Rescue_UnderAttack',
+            Count: 6,
+            MissionID: 2001,
+            Faction: 'Test Faction'
+        };
+        fs.appendFileSync(logFilePath, JSON.stringify(acceptRescue) + '\n', 'utf-8');
+        state = await nextUpdate();
+
+        expect(state.missions.passengersOnBoard).toBe(6);
+        expect(state.missions.isRescueMissionActive).toBe(true);
+
+        // 2. 救出ミッション完了
+        const completeRescue = {
+            timestamp: new Date().toISOString(),
+            event: 'MissionCompleted',
+            Name: 'Mission_TW_Rescue_UnderAttack_name',
+            MissionID: 2001,
+            Faction: 'Test Faction'
+        };
+        fs.appendFileSync(logFilePath, JSON.stringify(completeRescue) + '\n', 'utf-8');
+        state = await nextUpdate();
+
+        expect(state.missions.passengersOnBoard).toBe(0);
+        expect(state.missions.passengersTransported).toBe(6);
+        expect(state.missions.isRescueMissionActive).toBe(false);
+    }, 15000);
+
+    it('should correctly process user provided passenger and rescue sample log files', async () => {
+        // (1) samples/passanger のログファイルを検証
+        const passengerFixturePath = path.join(__dirname, '../../samples/passanger/Journal.2026-06-28T123648.01.log');
+        const passengerContent = fs.readFileSync(passengerFixturePath, 'utf-8');
+        fs.writeFileSync(logFilePath, passengerContent, 'utf-8');
+
+        const nextUpdate = () => {
+            return new Promise((resolve) => {
+                processor.once('update', (state) => {
+                    resolve(state);
+                });
+            });
+        };
+
+        processor.startMonitoring();
+        let state = await nextUpdate();
+
+        expect(state.missions.passengersTransported).toBe(3); // ログ内の1件のMission_PassengerVIPが完了して3人が輸送される
+        expect(state.missions.passengersOnBoard).toBe(0);
+        expect(state.missions.isRescueMissionActive).toBe(false);
+
+        // 監視とファイルを一度リセットして、今度は救出ミッションのログを検証
+        processor.removeAllListeners();
+        processor = new JournalProcessor(getInitialState());
+        fs.writeFileSync(logFilePath, '', 'utf-8');
+
+        const rescueFixturePath = path.join(__dirname, '../../samples/rescue/Journal.2024-09-21T214449.01.log');
+        const rescueContent = fs.readFileSync(rescueFixturePath, 'utf-8');
+        fs.writeFileSync(logFilePath, rescueContent, 'utf-8');
+
+        processor.startMonitoring();
+        state = await nextUpdate();
+
+        // ログ内には計9件 of MissionCompleted(UnderAttack、それぞれ6, 8, 7, 5, 6, 6, 5, 5, 5名)があり、合計で53名が輸送される
+        expect(state.missions.passengersTransported).toBe(53);
+        expect(state.missions.passengersOnBoard).toBe(0);
+        expect(state.missions.isRescueMissionActive).toBe(false);
     }, 15000);
 });
 

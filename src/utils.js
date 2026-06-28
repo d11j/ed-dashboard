@@ -30,7 +30,10 @@ export function getInitialState() {
             completed: 0,
             federation: 0,
             empire: 0,
-            independent: 0
+            independent: 0,
+            passengersOnBoard: 0,
+            passengersTransported: 0,
+            isRescueMissionActive: false
         },
         exploration: {
             totalScans: 0,

@@ -51,5 +51,11 @@
 
 {"timestamp":"2026-06-27T12:10:00Z", "event":"Progress", "Combat":15, "Trade":99, "Explore":35, "Soldier":0, "Exobiologist":0, "Federation":10, "Empire":5}
 {"timestamp":"2026-06-27T12:10:30Z", "event":"Promotion", "Trade":5}
+{"timestamp":"2026-06-27T12:10:40Z", "event":"MissionAccepted", "Faction":"Centauri Org", "Name":"Mission_PassengerVIP", "PassengerCount":3, "MissionID":3001}
+{"timestamp":"2026-06-27T12:10:45Z", "event":"MissionCompleted", "Faction":"Centauri Org", "Name":"Mission_PassengerVIP_name", "MissionID":3001}
+{"timestamp":"2026-06-27T12:10:50Z", "event":"MissionAccepted", "Faction":"Centauri Org", "Name":"Mission_TW_Rescue_UnderAttack", "Count":5, "MissionID":3002}
+{"timestamp":"2026-06-27T12:10:52Z", "event":"MissionAccepted", "Faction":"Centauri Org", "Name":"Mission_TW_Rescue_UnderAttack", "Count":8, "MissionID":3003}
+{"timestamp":"2026-06-27T12:10:55Z", "event":"MissionCompleted", "Faction":"Centauri Org", "Name":"Mission_TW_Rescue_UnderAttack_name", "MissionID":3002}
+{"timestamp":"2026-06-27T12:10:58Z", "event":"MissionCompleted", "Faction":"Centauri Org", "Name":"Mission_TW_Rescue_UnderAttack_name", "MissionID":3003}
 
 {"timestamp":"2026-06-27T12:11:00Z", "event":"Music", "MusicTrack":"MainMenu"}

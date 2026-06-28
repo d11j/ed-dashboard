@@ -256,6 +256,23 @@ function updateMissionSummary(newMissions, oldMissions) {
     updateElement('missions-emp', newMissions.empire, oldMissions ? oldMissions.empire : 0);
     updateElement('missions-ind', newMissions.independent, oldMissions ? oldMissions.independent : 0);
     updateElement('missions-total', newMissions.completed, oldMissions ? oldMissions.completed : 0);
+
+    // 旅客ミッション関連のUI更新
+    updateElement('passengers-on-board', newMissions.passengersOnBoard || 0, oldMissions ? oldMissions.passengersOnBoard : 0);
+    updateElement('passengers-transported', newMissions.passengersTransported || 0, oldMissions ? oldMissions.passengersTransported : 0);
+
+    // 救出ミッションのアクティブ状態によるラベル変更
+    const labelEl = document.getElementById('passenger-on-board-label');
+    if (labelEl) {
+        const isRescue = newMissions.isRescueMissionActive;
+        const newLabelText = isRescue ? 'Souls on Board' : 'Passengers on Board';
+        if (labelEl.textContent !== newLabelText) {
+            labelEl.textContent = newLabelText;
+            if (oldMissions) {
+                highlightElement(labelEl.parentElement);
+            }
+        }
+    }
 }
 
 function updateGenericTable(tableId, newData, oldData, headers) {
