@@ -233,6 +233,11 @@ describe('JournalProcessor', () => {
         expect(finalState.progress.Combat.progress).toBe(15);
         expect(finalState.progress.Trade.rank).toBe(5);
         expect(finalState.progress.Trade.progress).toBe(0); // Promotionにより0にリセット
+
+        // (6) 旅客・救出ミッション統計の検証
+        expect(finalState.missions.passengersOnBoard).toBe(0);
+        expect(finalState.missions.passengersTransported).toBe(16);
+        expect(finalState.missions.isRescueMissionActive).toBe(false);
     }, 15000);
 
     it('should track passenger missions correctly', async () => {
