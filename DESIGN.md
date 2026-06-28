@@ -14,8 +14,9 @@
   - `JournalProcessor`から発行されるイベント（`update`, `logUpdate`など）をリッスンし、整形済みデータをクライアントにブロードキャストする。
   - `lowdb` を使用したデータの永続化（読み書き）管理。
 - `src/journalProcessor.js`: アプリケーションのコアロジックモジュールとなる。クラスとして実装されており、ジャーナル処理に関連するすべてのロジックをカプセル化している。責務を以下に示す。
-  - `chokidar` を用いたElite: Dangerousのジャーナルディレクトリのファイル変更監視。
+  - `chokidar` を用いたElite: Dangerousのジャーナルディレクトリのファイル変更監視および `stopMonitoring()` によるクリーンアップ処理の提供。
   - ジャーナルエントリと Status.json をパースし、アプリケーションの状態を更新。
+  - 進行中の旅客ミッション（救出ミッションを含む）をID単位で追跡し、乗船中人数や輸送完了数、救出中フラグを管理。
   - 内部的な状態フラグ（例：戦闘状態、着陸シーケンス）の管理。
   - `EventEmitter`を継承し、状態変更があった際に`update`や`logUpdate`といったイベントを発行（emit）して外部に通知する。
 - `src/constants.js`: アプリケーション全体で利用される定数をエクスポートするモジュールとなる。これには以下が含まれる。
@@ -31,7 +32,9 @@
   - `assets/main.js`: クライアントサイドのメインスクリプト。アプリケーションの初期化を行う。
   - `assets/uiUpdater.js`: UIの更新ロジックをカプセル化したモジュール。
   - `assets/websocketClient.js`: WebSocket通信を管理するモジュール。
-  - `assets/chart.js` : 埋め込みグラフを管理するモジュール
+  - `assets/charts.js`: 埋め込みグラフ（Sparkline、燃料残量）を管理するモジュール。
+- `bin/simulator.js`: 開発用のジャーナルシミュレータスクリプト。
+- `tests/`: 自動テストコードを格納するディレクトリ（単体テスト、結合テスト、およびテスト用フィクスチャ）。
 
 ## 2. 主要なシーケンス
 
@@ -194,6 +197,7 @@ deactivate Server
 | 種別 | 説明 | ペイロード |
 |:--- |:---|:---|
 | reset_stats | サーバーにすべての統計データのリセットを要求する。 | `null` |
+| resume_last_session | サーバーに最後のセッションの再開を要求する。 | `null` |
 | get_history | サーバーに過去のセッション履歴の取得を要求する。 | `null` |
 | start_obs_recording | サーバーにOBSの録画開始を要求する。 | `null` |
 | stop_obs_recording | サーバーにOBSの録画停止を要求する。 | `null` |
@@ -217,6 +221,16 @@ deactivate Server
       * アプリケーション終了時（`SIGINT`等）や日付変更時に、現在のセッション統計をコミットする。
       * 次回起動時に「前回セッションとの比較（例: 前日比）」を表示するために使用する。
 
+#### セッション復元 (Session Resume) の仕様
+
+- **再開可能性判定 (`isResumable`)**:
+  サーバー起動直後、ゲームプレイの開始とみなされるイベント（ジャンプ、戦闘報酬、取引、ミッション受注など）が発生する前であれば、前回のセッションから状態を復元できる。
+  - ゲームプレイ開始とみなさない除外イベント: `LoadGame`, `Music`, `Progress`, `Rank`, `Promotion`
+  - 上記以外のゲームプレイ関連イベントを1つでも受信した場合、`isResumable` は `false` になり、再開不可能となる。
+- **復元処理の挙動**:
+  クライアントから `resume_last_session` 要求を受信した際、`isResumable` が `true` であれば `db.json` の履歴（`history` 配列の最終要素）を読み出す。
+  `JournalProcessor` は、初期状態（`getInitialState()` のコピー）にその履歴データをマージして現在の状態を上書きし、セッション再開時の経過時間や燃料計測用タイマーを再始動する。復元完了後、同一セッションでの多重復元を防ぐため `isResumable` を `false` に設定する。
+
 ### 5.2. データ可視化 (Visualization)
 
 UIの視認性を損なわず、数値の傾向を把握可能にするため、**スパークライン（Sparkline）** を導入する。
@@ -228,6 +242,31 @@ UIの視認性を損なわず、数値の傾向を把握可能にするため、
       * 軸（Scales）、凡例（Legend）、グリッド線をすべて非表示にする。
       * 線（Line）または棒（Bar）のみをミニマルに描画する。
       * 配色は現在のテーマカラー（オレンジ）をベースとし、透明度を下げて数値情報を阻害しないようにする。
-  * **適用箇所**:
-      * **Combat Summary**: 賞金獲得額の推移（直近10件程度）。
-      * **Trading Summary**: 取引ごとの利益率の推移。
+
+#### 適用箇所
+
+  * **Combat Summary**: 賞金獲得額の推移（直近10件の履歴データ `state.bounty.bountyHistory`）。
+  * **Trading Summary**: 取引ごとの利益の推移（直近10件の履歴データ `state.trading.tradingProfitHistory`）。
+  * **Fuel Summary**: 燃料残量の推移（過去60分間の履歴データ `state.fuel.history`）。1分毎の定期タイマーでサンプリングし、最大値 `state.fuel.max` を上限値とした時間系列グラフを描画する。
+
+## 6. 開発ユーティリティとテスト (Development & Testing)
+
+### 6.1. ジャーナルシミュレータ (`bin/simulator.js`)
+
+ゲーム実機を起動することなく、ローカル開発環境でダッシュボードの表示動作やレイアウト変更、WebSocket通信を確認するためのシミュレーションツール。
+- **入力ソース**: `tests/fixtures/journal-test.log` に保存されたテスト用のジャーナル行データ。
+- **処理の流れ**:
+  1. テストデータを1行ずつ読み込む。
+  2. タイムスタンプ（`timestamp` プロパティ）を、書き込むタイミングの現在時刻に書き換える。
+  3. 設定された `JOURNAL_DIR` の配下に、`Journal.YYYY-MM-DD.sim.log`（シミュレーション用ファイル）として追記保存する。
+  4. 追記はデフォルトで1秒（1000ms）間隔でループ処理され、すべての行を書き終えると正常終了する。
+
+### 6.2. 自動テスト構成
+
+本システムは、品質維持とデグレード防止のため、Vitest を用いた自動テストを実行可能な構造になっている。
+
+- **単体テスト (Unit Tests)**:
+  - `tests/unit/journalProcessor.test.js`: ジャーナルイベント監視のモックを作成し、各種ジャーナル（戦闘、交易、探索、マテリアル、進行状況）のパース結果が正しく状態 `state` に集約されるか検証。旅客ミッションの搭乗・輸送状況や、難民救出ミッションによる救出フラグ (`isRescueMissionActive`) の切り替えもカバー。
+  - `tests/unit/utils.test.js`: 経過時間フォーマット、初期状態生成ロジックの動作検証。
+- **結合テスト (Integration Tests)**:
+  - `tests/integration/server.test.js`: `supertest` および WebSocket クライアントを用いた結合テスト。WebSocket サーバーの起動、接続時の初期状態/履歴データの送信、クライアントからのリセット (`reset_stats`)・レイアウト変更 (`layout_update`)・セッション再開 (`resume_last_session`) の処理、および `db.json` への読み書き動作を検証。
