@@ -10,7 +10,10 @@ export class JournalProcessor extends EventEmitter {
     #pilotRanks = {}; // 敵パイロットのランク情報を保持
     #processedFiles = {};
     #activeMissions = {}; // 進行中のミッション情報を保持
+    #activePassengerMissions = new Map(); // 進行中の旅客ミッション情報を保持
     #factionAllegianceMap = {}; // 現在の星系の派閥と所属のマップ
+    #watcher = null;
+    #statusWatcher = null;
 
     // 状態管理フラグ
     #wasHardpointsDeployed = false; // ハードポイントの以前の状態
@@ -114,7 +117,7 @@ export class JournalProcessor extends EventEmitter {
      */
     startMonitoring() {
         console.log(`ジャーナルディレクトリを監視中: ${JOURNAL_DIR}`);
-        const watcher = chokidar.watch(JOURNAL_DIR, {
+        this.#watcher = chokidar.watch(JOURNAL_DIR, {
             persistent: true,
             ignoreInitial: false, // 起動時の既存ファイルも処理対象にする
             awaitWriteFinish: { stabilityThreshold: 500, pollInterval: 100 },
@@ -126,7 +129,7 @@ export class JournalProcessor extends EventEmitter {
 
         console.log('ジャーナルファイルの初回スキャンと監視を開始します...');
 
-        watcher
+        this.#watcher
             .on('add', (filePath) => {
                 const filename = path.basename(filePath);
                 this.#targetPrefixes.add(this.#getCurrentPrefix());
@@ -162,13 +165,13 @@ export class JournalProcessor extends EventEmitter {
 
                 // --- Status.jsonの監視をここで開始 ---
                 const statusPath = path.join(JOURNAL_DIR, 'Status.json');
-                const statusWatcher = chokidar.watch(statusPath, {
+                this.#statusWatcher = chokidar.watch(statusPath, {
                     persistent: true,
                     ignoreInitial: true,
                     awaitWriteFinish: { stabilityThreshold: 200, pollInterval: 100 }
                 });
 
-                statusWatcher.on('change', (filePath) => {
+                this.#statusWatcher.on('change', (filePath) => {
                     if (!this.#isInGame) { return; }
                     fs.readFile(filePath, 'utf-8', (err, data) => {
                         if (err) { return; }
@@ -226,6 +229,7 @@ export class JournalProcessor extends EventEmitter {
      */
     resetState(initialState) {
         this.state = initialState;
+        this.#activePassengerMissions.clear();
         this.#isResumable = true; // リセット後は復元可能にする
         this.#efficiencyStartTime = new Date();
         this.#startFuelHistoryTimer(); // タイマーもリセットして開始
@@ -255,6 +259,7 @@ export class JournalProcessor extends EventEmitter {
             }
         }
         this.state = restoredState;
+        this.#activePassengerMissions.clear();
         this.#isResumable = false; // 復元後は再度復元できないようにする
         this.#efficiencyStartTime = new Date(); // 再開時点から効率計算を開始
         this.#startFuelHistoryTimer(); // 再開時にもタイマーを開始
@@ -509,6 +514,25 @@ export class JournalProcessor extends EventEmitter {
         }
     }
 
+    /** 監視を停止し、リソースを解放する */
+    stopMonitoring() {
+        if (this.#watcher) {
+            this.#watcher.close();
+            this.#watcher = null;
+            console.log('ジャーナルファイルの監視を停止しました。');
+        }
+        if (this.#statusWatcher) {
+            this.#statusWatcher.close();
+            this.#statusWatcher = null;
+            console.log('Status.jsonの監視を停止しました。');
+        }
+        this.#stopFuelHistoryTimer();
+        if (this.#sessionStartTimer) {
+            clearTimeout(this.#sessionStartTimer);
+            this.#sessionStartTimer = null;
+        }
+    }
+
     /** メインメニューに戻った際にセッションを終了とみなす */
     #handleMusic(entry) {
         if (entry.MusicTrack === 'MainMenu') {
@@ -690,6 +714,20 @@ export class JournalProcessor extends EventEmitter {
                 this.#activeMissions[entry.MissionID] = allegiance;
             }
         }
+
+        const name = entry.Name || '';
+        const isPassenger = name.toLowerCase().includes('passenger') || name.toLowerCase().includes('rescue');
+        const isRescue = name.toLowerCase().includes('rescue');
+
+        if (entry.MissionID && isPassenger) {
+            const passengerCount = entry.PassengerCount || entry.Count || 0;
+            this.#activePassengerMissions.set(entry.MissionID, {
+                passengerCount,
+                isRescue
+            });
+            this.state.missions.passengersOnBoard += passengerCount;
+            this.#updateRescueMissionActiveFlag();
+        }
     }
 
     /**
@@ -710,6 +748,14 @@ export class JournalProcessor extends EventEmitter {
         if (allegiance) {
             delete this.#activeMissions[MissionID];
         }
+
+        if (this.#activePassengerMissions.has(MissionID)) {
+            const mission = this.#activePassengerMissions.get(MissionID);
+            this.state.missions.passengersOnBoard = Math.max(0, this.state.missions.passengersOnBoard - mission.passengerCount);
+            this.state.missions.passengersTransported += mission.passengerCount;
+            this.#activePassengerMissions.delete(MissionID);
+            this.#updateRescueMissionActiveFlag();
+        }
     }
 
     /**
@@ -719,6 +765,14 @@ export class JournalProcessor extends EventEmitter {
     #handleMissionAbandonedOrFailed(entry) {
         if (this.#activeMissions[entry.MissionID]) {
             delete this.#activeMissions[entry.MissionID];
+        }
+
+        const { MissionID } = entry;
+        if (this.#activePassengerMissions.has(MissionID)) {
+            const mission = this.#activePassengerMissions.get(MissionID);
+            this.state.missions.passengersOnBoard = Math.max(0, this.state.missions.passengersOnBoard - mission.passengerCount);
+            this.#activePassengerMissions.delete(MissionID);
+            this.#updateRescueMissionActiveFlag();
         }
     }
 
@@ -850,6 +904,17 @@ export class JournalProcessor extends EventEmitter {
         if (entry.FuelCapacity && entry.FuelCapacity.Main) {
             this.state.fuel.max = entry.FuelCapacity.Main;
         }
+    }
+
+    #updateRescueMissionActiveFlag() {
+        let hasActiveRescue = false;
+        for (const mission of this.#activePassengerMissions.values()) {
+            if (mission.isRescue) {
+                hasActiveRescue = true;
+                break;
+            }
+        }
+        this.state.missions.isRescueMissionActive = hasActiveRescue;
     }
 }
 
