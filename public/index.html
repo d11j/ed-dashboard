@@ -17,7 +17,7 @@
     <div id="status-indicator" class="status disconnected">Offline</div>
     <div class="controls">
         <button id="reset-button" class="reset-button">RESET STATS</button>
-        <button id="resume-session-button" class="resume-session-button">RESUME SESSION</button> 
+        <button id="resume-session-button" class="resume-session-button">RESUME SESSION</button>
         <button id="record-button" class="record-button">START RECORDING</button>
     </div>
     <div class="container">
@@ -56,36 +56,40 @@
                             <div class="toggle-section">
                                 <input type="checkbox" id="toggle-mission-summary" class="toggle-checkbox" checked>
                                 <label for="toggle-mission-summary" class="toggle-label h3">Completed Missions</label>
-                                <div class="toggle-content summary-grid">
-                                    <div class="summary-item">
-                                        <div class="label">Federation</div>
-                                        <div id="missions-fed" class="value">0</div>
-                                    </div>
-                                    <div class="summary-item">
-                                        <div class="label">Empire</div>
-                                        <div id="missions-emp" class="value">0</div>
-                                    </div>
-                                    <div class="summary-item">
-                                        <div class="label">Others</div>
-                                        <div id="missions-ind" class="value">0</div>
-                                    </div>
-                                    <div class="summary-item">
-                                        <div class="label">Total</div>
-                                        <div id="missions-total" class="value">0</div>
+                                <div class="toggle-content">
+                                    <div class="summary-grid">
+                                        <div class="summary-item">
+                                            <div class="label">Federation</div>
+                                            <div id="missions-fed" class="value">0</div>
+                                        </div>
+                                        <div class="summary-item">
+                                            <div class="label">Empire</div>
+                                            <div id="missions-emp" class="value">0</div>
+                                        </div>
+                                        <div class="summary-item">
+                                            <div class="label">Others</div>
+                                            <div id="missions-ind" class="value">0</div>
+                                        </div>
+                                        <div class="summary-item">
+                                            <div class="label">Total</div>
+                                            <div id="missions-total" class="value">0</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                             <div class="toggle-section">
                                 <input type="checkbox" id="toggle-passenger-summary" class="toggle-checkbox" checked>
                                 <label for="toggle-passenger-summary" class="toggle-label h3">Passenger Missions</label>
-                                <div class="toggle-content summary-grid">
-                                    <div class="summary-item">
-                                        <div id="passenger-on-board-label" class="label">Passengers on Board</div>
-                                        <div id="passengers-on-board" class="value">0</div>
-                                    </div>
-                                    <div class="summary-item">
-                                        <div class="label">Passengers Transported</div>
-                                        <div id="passengers-transported" class="value">0</div>
+                                <div class="toggle-content">
+                                    <div class="summary-grid">
+                                        <div class="summary-item summary-item-double">
+                                            <div id="passenger-on-board-label" class="label">Passengers on Board</div>
+                                            <div id="passengers-on-board" class="value">0</div>
+                                        </div>
+                                        <div class="summary-item summary-item-double">
+                                            <div class="label">Passengers Transported</div>
+                                            <div id="passengers-transported" class="value">0</div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -112,52 +116,52 @@
         <!-- Right Column -->
         <div class="column" id="right-column">
             <!-- Combat Summary Card -->
-                <div class="card" data-id="bounty">
-                    <div class="drag-handle"></div>
-                    <div class="card-main-content"> 
-                        <div class="toggle-section">
-                            <input type="checkbox" id="toggle-bounty-summary" class="toggle-checkbox" checked>
-                            <label for="toggle-bounty-summary" class="toggle-label h2">Combat Summary</label>
-                            <div class="toggle-content">
-                                <div class="summary-grid">
-                                    <div class="summary-item">
-                                        <div class="label">Total Kills</div>
-                                        <div id="bounty-count" class="value">0</div>
-                                    </div>
-                                    <div class="summary-item">
-                                        <div class="label">Total Rewards</div>
-                                        <div id="bounty-rewards" class="value">0</div>
-                                    </div>
-                                    <div class="summary-item summary-item-double">
-                                        <div class="label">Bounty per Hour</div>
-                                        <div id="combat-bounty-per-hour" class="value">N/A</div>
-                                    </div>
+            <div class="card" data-id="bounty">
+                <div class="drag-handle"></div>
+                <div class="card-main-content">
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-bounty-summary" class="toggle-checkbox" checked>
+                        <label for="toggle-bounty-summary" class="toggle-label h2">Combat Summary</label>
+                        <div class="toggle-content">
+                            <div class="summary-grid">
+                                <div class="summary-item">
+                                    <div class="label">Total Kills</div>
+                                    <div id="bounty-count" class="value">0</div>
                                 </div>
-                                <div class="sparkline-container">
-                                    <canvas id="bounty-sparkline"></canvas>
+                                <div class="summary-item">
+                                    <div class="label">Total Rewards</div>
+                                    <div id="bounty-rewards" class="value">0</div>
                                 </div>
-                                <div class="toggle-section">
-                                    <input type="checkbox" id="toggle-bounty-ranks" class="toggle-checkbox" checked>
-                                    <label for="toggle-bounty-ranks" class="toggle-label h3">Kills by Rank</label>
-                                    <div class="toggle-content">
-                                        <table id="bounty-ranks-table"></table>
-                                    </div>
+                                <div class="summary-item summary-item-double">
+                                    <div class="label">Bounty per Hour</div>
+                                    <div id="combat-bounty-per-hour" class="value">N/A</div>
                                 </div>
-                                <div class="toggle-section">
-                                    <input type="checkbox" id="toggle-bounty-targets" class="toggle-checkbox" checked>
-                                    <label for="toggle-bounty-targets" class="toggle-label h3">Kills by Target</label>
-                                    <div class="toggle-content">
-                                        <table id="bounty-targets-table"></table>
-                                    </div>
+                            </div>
+                            <div class="sparkline-container">
+                                <canvas id="bounty-sparkline"></canvas>
+                            </div>
+                            <div class="toggle-section">
+                                <input type="checkbox" id="toggle-bounty-ranks" class="toggle-checkbox" checked>
+                                <label for="toggle-bounty-ranks" class="toggle-label h3">Kills by Rank</label>
+                                <div class="toggle-content">
+                                    <table id="bounty-ranks-table"></table>
+                                </div>
+                            </div>
+                            <div class="toggle-section">
+                                <input type="checkbox" id="toggle-bounty-targets" class="toggle-checkbox" checked>
+                                <label for="toggle-bounty-targets" class="toggle-label h3">Kills by Target</label>
+                                <div class="toggle-content">
+                                    <table id="bounty-targets-table"></table>
                                 </div>
                             </div>
                         </div>
+                    </div>
                 </div>
             </div>
 
             <div class="card" data-id="material">
                 <div class="drag-handle"></div>
-                    <div class="card-main-content">
+                <div class="card-main-content">
                     <div class="toggle-section">
                         <input type="checkbox" id="toggle-mat-summary" class="toggle-checkbox" checked>
                         <label for="toggle-mat-summary" class="toggle-label h2">Materials Collected</label>
@@ -287,4 +291,5 @@
     <script defer="defer" src="assets/charts.js"></script>
     <script type="module" src="assets/main.js"></script>
 </body>
+
 </html>
