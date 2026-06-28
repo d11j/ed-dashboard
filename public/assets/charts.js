@@ -14,7 +14,7 @@ const sparklineBaseConfig = {
                 align: 'start',
                 color: 'rgba(255, 255, 255, 0.7)',
                 font: {
-                    family: "'Roboto Mono', monospace",
+                    family: '\'Roboto Mono\', monospace',
                     size: 12,
                 },
                 padding: { top: 0, bottom: 4 }
@@ -40,7 +40,7 @@ const sparklineBaseConfig = {
 /**
  * Sparklineチャートを生成または更新する
  * @param {string} canvasId - チャートを描画するcanvas要素のID
- * @param {number[]} data - チャートに表示するデータ配列 
+ * @param {number[]} data - チャートに表示するデータ配列
  * @param {object} [options={}] - 追加のChart.jsオプション (例: { max: 100 })
  * @returns {Chart} Chart.jsのインスタンス
  */
