@@ -1,0 +1,76 @@
+name: Test and Automatic Release
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  # 1. テストジョブ
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Tests
+        run: npm test
+
+  # 2. リリースジョブ（テストが成功した場合のみ実行）
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # リリース作成とタグ打ちに必要な権限
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Generate Version Tag (CalVer)
+        id: calver
+        run: |
+          TZ="Asia/Tokyo"
+          TAG_NAME=$(date +'%Y.%m.%d')-b${{ github.run_number }}
+          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
+
+      - name: Create Release Zip
+        run: |
+          # 必要なファイル・フォルダだけをZipにまとめる
+          # ※node_modulesは含めず、ユーザー環境のstart-server.ps1等で入れる想定
+          zip -r ed-dashboard.zip \
+            public/ \
+            src/ \
+            bin/ \
+            server.js \
+            package.json \
+            package-lock.json \
+            .env.example \
+            start-server.ps1 \
+            README.md \
+            DESIGN.md \
+            LICENSE
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.calver.outputs.TAG_NAME }}
+          name: Release ${{ steps.calver.outputs.TAG_NAME }}
+          body: |
+            ## 自動生成されたリリース
+            ${{ steps.calver.outputs.TAG_NAME }}
+            
+            ### 変更内容
+            - コミット: ${{ github.sha }}
+          draft: true
+          files: |
+            ed-dashboard.zip
+            
