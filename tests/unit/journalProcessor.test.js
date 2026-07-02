@@ -354,8 +354,8 @@ describe('JournalProcessor', () => {
     }, 15000);
 
     it('should correctly process user provided passenger and rescue sample log files', async () => {
-        // (1) samples/passanger のログファイルを検証
-        const passengerFixturePath = path.join(__dirname, '../../samples/passanger/Journal.2026-06-28T123648.01.log');
+        // (1) samples/passenger のログファイルを検証
+        const passengerFixturePath = path.join(__dirname, '../fixtures/samples/passenger/Journal.2026-06-28T123648.01.log');
         const passengerContent = fs.readFileSync(passengerFixturePath, 'utf-8');
         fs.writeFileSync(logFilePath, passengerContent, 'utf-8');
 
@@ -379,7 +379,7 @@ describe('JournalProcessor', () => {
         processor = new JournalProcessor(getInitialState());
         fs.writeFileSync(logFilePath, '', 'utf-8');
 
-        const rescueFixturePath = path.join(__dirname, '../../samples/rescue/Journal.2024-09-21T214449.01.log');
+        const rescueFixturePath = path.join(__dirname, '../fixtures/samples/rescue/Journal.2024-09-21T214449.01.log');
         const rescueContent = fs.readFileSync(rescueFixturePath, 'utf-8');
         fs.writeFileSync(logFilePath, rescueContent, 'utf-8');
 
