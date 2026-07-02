@@ -39,7 +39,7 @@ jobs:
         id: calver
         run: |
           TZ="Asia/Tokyo"
-          TAG_NAME=$(date +'%Y.%m.%d')-b${{ github.run_number }}
+          TAG_NAME=$(date +'%Y%m%d')-b${{ github.run_number }}
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_OUTPUT
 
       - name: Create Release Zip
@@ -70,7 +70,7 @@ jobs:
             
             ### 変更内容
             - コミット: ${{ github.sha }}
-          draft: true
+          draft: false
           files: |
             ed-dashboard.zip
             
