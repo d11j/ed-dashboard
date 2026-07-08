@@ -10,6 +10,18 @@ const recordButton = document.getElementById('record-button');
 const copyLogButton = document.getElementById('copy-log-button');
 const logDisplay = document.getElementById('event-log-display');
 
+// --- URL Parameter Handling ---
+const urlParams = new URLSearchParams(window.location.search);
+const showParam = urlParams.get('show');
+
+if (showParam === 'left') {
+    document.getElementById('right-column').style.display = 'none';
+    document.getElementById('column-container').style.justifyContent = 'flex-start';
+} else if (showParam === 'right') {
+    document.getElementById('left-column').style.display = 'none';
+    document.getElementById('column-container').style.justifyContent = 'flex-end';
+}
+
 // --- WebSocket Event Listeners (via document) ---
 document.addEventListener('ws:open', () => setStatusUI(true));
 document.addEventListener('ws:close', () => setStatusUI(false));
