@@ -191,31 +191,56 @@ describe('Server Integration', () => {
         expect(messages.some(m => m.type === 'layout_apply')).toBe(true);
     });
 
-    it('should handle layout_update message and write to DB', async () => {
-        // 1. Arrange: WebSocketクライアント接続と layout_update ペイロードの準備
-        const client = new WebSocket(`ws://localhost:${allocatedPort}`);
-        await new Promise((resolve) => client.on('open', resolve));
+    it('should handle layout_update message with collapsed state, write to DB and broadcast to other clients', async () => {
+        // 1. Arrange: 2つのWebSocketクライアント接続の準備
+        const client1 = new WebSocket(`ws://localhost:${allocatedPort}`);
+        const client2 = new WebSocket(`ws://localhost:${allocatedPort}`);
+
+        await Promise.all([
+            new Promise((resolve) => client1.on('open', resolve)),
+            new Promise((resolve) => client2.on('open', resolve))
+        ]);
+
+        // client2が受信するlayout_applyメッセージを監視
+        const receiveBroadcast = new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('Broadcast timeout')), 3000);
+            client2.on('message', (data) => {
+                const msg = JSON.parse(data);
+                if (msg.type === 'layout_apply' && msg.payload.collapsed) {
+                    clearTimeout(timeout);
+                    resolve(msg.payload);
+                }
+            });
+        });
 
         // mock lowdb write の呼び出し履歴をリセット
         mockLowWrite.mockClear();
 
-        const payload = {
-            type: 'layout_update',
-            payload: {
-                'left-column': ['mission'],
-                'right-column': ['combat']
+        const layoutPayload = {
+            'left-column': ['mission'],
+            'right-column': ['combat'],
+            collapsed: {
+                'toggle-progress': true,
+                'toggle-mission': false
             }
         };
 
-        // 2. Act: layout_update メッセージをサーバーに送信
-        client.send(JSON.stringify(payload));
+        const payload = {
+            type: 'layout_update',
+            payload: layoutPayload
+        };
 
-        // 処理の非同期遅延（DB書き込み）を少し待機
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        // 2. Act: client1から layout_update メッセージをサーバーに送信
+        client1.send(JSON.stringify(payload));
 
-        // 3. Assert: DB書き込みメソッド (lowdb.write) が呼ばれたか検証
+        const broadcastData = await receiveBroadcast;
+
+        // 3. Assert: DB書き込みが行われ、他のクライアントにcollapsed情報が含まれるlayout_applyが届いたことを検証
         expect(mockLowWrite).toHaveBeenCalled();
-        client.close();
+        expect(broadcastData).toEqual(layoutPayload);
+
+        client1.close();
+        client2.close();
     });
 
     it('should handle reset_stats message and save session to DB', async () => {

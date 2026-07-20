@@ -19,7 +19,8 @@ const __dirname = path.dirname(__filename);
 const defaultData = {
     layout: {
         'left-column': ['rank-progression', 'mission', 'event-log'],
-        'right-column': ['combat', 'trading', 'exploration', 'material']
+        'right-column': ['combat', 'trading', 'exploration', 'material'],
+        collapsed: {}
     },
     history: []
 };

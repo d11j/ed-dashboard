@@ -91,6 +91,13 @@ document.addEventListener('DOMContentLoaded', () => {
         for (const id in columns) {
             currentOrder[id] = Array.from(columns[id].querySelectorAll('.card')).map(card => card.dataset.id);
         }
+        const collapsed = {};
+        document.querySelectorAll('.toggle-checkbox').forEach(checkbox => {
+            if (checkbox.id) {
+                collapsed[checkbox.id] = !checkbox.checked;
+            }
+        });
+        currentOrder.collapsed = collapsed;
         sendMessage('layout_update', currentOrder);
     };
 
@@ -108,6 +115,10 @@ document.addEventListener('DOMContentLoaded', () => {
             new Sortable(columns[id], sortableOptions);
         }
     }
+
+    document.querySelectorAll('.toggle-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', emitOrder);
+    });
 
     // Start the WebSocket connection
     connect();

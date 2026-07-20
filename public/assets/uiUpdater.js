@@ -527,7 +527,7 @@ function updateProgressBars(containerId, newProgressData, oldProgressData) {
 
 /**
  * 引数で受け取った順序オブジェクトに基づいて、DOMのカードを並び替える
- * @param {object} order - { "left-column": ["id1", "id2"], "right-column": ["id3"] } 形式のオブジェクト
+ * @param {object} order - { "left-column": ["id1", "id2"], "right-column": ["id3"], "collapsed": { "toggle-progress": true } } 形式のオブジェクト
  */
 function applyCardOrder(order) {
     const columns = {
@@ -548,6 +548,15 @@ function applyCardOrder(order) {
                     columnElement.appendChild(cardElement);
                 }
             });
+        }
+    }
+
+    if (order.collapsed && typeof order.collapsed === 'object') {
+        for (const toggleId in order.collapsed) {
+            const checkbox = document.getElementById(toggleId);
+            if (checkbox) {
+                checkbox.checked = !order.collapsed[toggleId];
+            }
         }
     }
 }
