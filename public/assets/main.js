@@ -87,9 +87,9 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     const emitOrder = () => {
-        const currentOrder = {};
+        const columnsData = {};
         for (const id in columns) {
-            currentOrder[id] = Array.from(columns[id].querySelectorAll('.card')).map(card => card.dataset.id);
+            columnsData[id] = Array.from(columns[id].querySelectorAll('.card')).map(card => card.dataset.id);
         }
         const collapsed = {};
         document.querySelectorAll('.toggle-checkbox').forEach(checkbox => {
@@ -97,8 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 collapsed[checkbox.id] = !checkbox.checked;
             }
         });
-        currentOrder.collapsed = collapsed;
-        sendMessage('layout_update', currentOrder);
+        sendMessage('layout_update', {
+            columns: columnsData,
+            collapsed: collapsed
+        });
     };
 
     const sortableOptions = {

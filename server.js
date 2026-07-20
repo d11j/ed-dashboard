@@ -18,8 +18,10 @@ const __dirname = path.dirname(__filename);
 // --- DBのセットアップ ---
 const defaultData = {
     layout: {
-        'left-column': ['rank-progression', 'mission', 'event-log'],
-        'right-column': ['combat', 'trading', 'exploration', 'material'],
+        columns: {
+            'left-column': ['rank-progression', 'mission', 'event-log'],
+            'right-column': ['combat', 'trading', 'exploration', 'material']
+        },
         collapsed: {}
     },
     history: []
@@ -28,8 +30,11 @@ const adapter = new JSONFile('db.json');
 const db = new Low(adapter, defaultData);
 await db.read(); // 既存のdb.jsonからデータを読み込む
 
-// db.jsonが空オブジェクト{}などの場合にデフォルト値を適用する
+// db.jsonが空オブジェクトや旧構造の場合にデフォルト値を適用する
 db.data = { ...defaultData, ...db.data };
+if (!db.data.layout || !db.data.layout.columns) {
+    db.data.layout = defaultData.layout;
+}
 db.data.history = db.data.history || [];
 
 // --- グローバル状態変数 ---

@@ -217,8 +217,10 @@ describe('Server Integration', () => {
         mockLowWrite.mockClear();
 
         const layoutPayload = {
-            'left-column': ['mission'],
-            'right-column': ['combat'],
+            columns: {
+                'left-column': ['mission'],
+                'right-column': ['combat']
+            },
             collapsed: {
                 'toggle-progress': true,
                 'toggle-mission': false

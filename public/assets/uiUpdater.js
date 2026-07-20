@@ -526,23 +526,24 @@ function updateProgressBars(containerId, newProgressData, oldProgressData) {
 }
 
 /**
- * 引数で受け取った順序オブジェクトに基づいて、DOMのカードを並び替える
- * @param {object} order - { "left-column": ["id1", "id2"], "right-column": ["id3"], "collapsed": { "toggle-progress": true } } 形式のオブジェクト
+ * 引数で受け取ったレイアウトオブジェクトに基づいて、DOMのカードを並び替える
+ * @param {object} layout - { "columns": { "left-column": ["id1"], "right-column": ["id2"] }, "collapsed": { "toggle-progress": true } } 形式のオブジェクト
  */
-function applyCardOrder(order) {
+function applyCardOrder(layout) {
     const columns = {
         'left-column': document.getElementById('left-column'),
         'right-column': document.getElementById('right-column')
     };
-    if (!order || typeof order !== 'object') {
-        console.error('無効な順序データです。');
+    if (!layout || typeof layout !== 'object') {
+        console.error('無効なレイアウトデータです。');
         return;
     }
 
-    for (const columnId in order) {
+    const columnsData = layout.columns || layout;
+    for (const columnId in columnsData) {
         const columnElement = columns[columnId];
-        if (columnElement && Array.isArray(order[columnId])) {
-            order[columnId].forEach(cardId => {
+        if (columnElement && Array.isArray(columnsData[columnId])) {
+            columnsData[columnId].forEach(cardId => {
                 const cardElement = document.querySelector(`.card[data-id='${cardId}']`);
                 if (cardElement) {
                     columnElement.appendChild(cardElement);
@@ -551,11 +552,11 @@ function applyCardOrder(order) {
         }
     }
 
-    if (order.collapsed && typeof order.collapsed === 'object') {
-        for (const toggleId in order.collapsed) {
+    if (layout.collapsed && typeof layout.collapsed === 'object') {
+        for (const toggleId in layout.collapsed) {
             const checkbox = document.getElementById(toggleId);
             if (checkbox) {
-                checkbox.checked = !order.collapsed[toggleId];
+                checkbox.checked = !layout.collapsed[toggleId];
             }
         }
     }
