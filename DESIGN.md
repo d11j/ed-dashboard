@@ -101,7 +101,15 @@ Server -> Processor: .on('sessionEnd', ...)
 
 OBS ->> Server: on(RecordStateChanged)
 Server -> Client: broadcast(obs_recording_state)
-Server -> Processor: setRecordingState(isRecording, timestamp)
+alt outputState === OBS_WEBSOCKET_OUTPUT_STARTED
+    Server -> Processor: handleRecordingStarted(timestamp)
+else outputState === OBS_WEBSOCKET_OUTPUT_PAUSED
+    Server -> Processor: handleRecordingPaused(timestamp)
+else outputState === OBS_WEBSOCKET_OUTPUT_RESUMED
+    Server -> Processor: handleRecordingResumed(timestamp)
+else outputState === OBS_WEBSOCKET_OUTPUT_STOPPED
+    Server -> Processor: handleRecordingStopped(timestamp)
+end
 activate Processor
 Processor -> Processor: #logEvent()
 Processor ->> Server: emit('logUpdate', eventLog)

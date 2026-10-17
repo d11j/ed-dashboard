@@ -291,30 +291,6 @@ export class JournalProcessor extends EventEmitter {
         this.emit('logUpdate', this.eventLog);
     }
 
-    /**
-     * 録画状態を変更する (server.jsからOBSのイベントに応じて呼び出す。後方互換用)
-     * @param {boolean} isRecording - 録画中であるか
-     * @param {Date | null} startTime - 録画開始時刻
-     * @param {boolean} [isPaused=false] - 一時停止中であるか
-     */
-    setRecordingState(isRecording, startTime = null, isPaused = false) {
-        if (isRecording) {
-            if (isPaused) {
-                if (!this.#isRecording) {
-                    this.handleRecordingStarted(startTime || new Date());
-                }
-                this.handleRecordingPaused(startTime || new Date());
-            } else {
-                if (this.#isRecording && this.#isRecordingPaused) {
-                    this.handleRecordingResumed(startTime || new Date());
-                } else if (!this.#isRecording) {
-                    this.handleRecordingStarted(startTime || new Date());
-                }
-            }
-        } else {
-            this.handleRecordingStopped(new Date());
-        }
-    }
 
     /**
      * 燃料履歴を1分ごとに記録するタイマーを開始する

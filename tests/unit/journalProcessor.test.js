@@ -437,39 +437,6 @@ describe('JournalProcessor', () => {
 
             vi.useRealTimers();
         });
-
-        it('should maintain backward compatibility with setRecordingState', () => {
-            const baseTime = new Date('2026-10-17T10:00:00Z');
-            vi.useFakeTimers();
-            vi.setSystemTime(baseTime);
-
-            const testProcessor = new JournalProcessor(getInitialState());
-
-            // 開始
-            testProcessor.setRecordingState(true, baseTime);
-            expect(testProcessor.getRecordingState().isRecording).toBe(true);
-            expect(testProcessor.getRecordingState().isPaused).toBe(false);
-
-            // 一時停止
-            vi.advanceTimersByTime(60 * 1000);
-            testProcessor.setRecordingState(true, new Date(), true);
-            expect(testProcessor.getRecordingState().isPaused).toBe(true);
-            expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:01:00');
-
-            // 再開
-            vi.advanceTimersByTime(120 * 1000); // 2分停止
-            testProcessor.setRecordingState(true, new Date(), false);
-            expect(testProcessor.getRecordingState().isPaused).toBe(false);
-            expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:01:00'); // 再開直後は1分
-
-            // 停止
-            vi.advanceTimersByTime(30 * 1000); // さらに30秒録画
-            testProcessor.setRecordingState(false);
-            expect(testProcessor.getRecordingState().isRecording).toBe(false);
-            expect(testProcessor.eventLog).toContain('[00:01:30] -- 録画停止 --');
-
-            vi.useRealTimers();
-        });
     });
 });
 

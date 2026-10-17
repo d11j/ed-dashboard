@@ -242,11 +242,7 @@ obs.on('RecordStateChanged', (data) => {
         isPaused = false;
         journalProcessor.handleRecordingStopped(new Date());
     } else {
-        // outputState が未定義または未知の場合（旧バージョンフォールバック）
-        journalProcessor.setRecordingState(outputActive, new Date());
-        const recState = journalProcessor.getRecordingState();
-        isRecording = recState.isRecording;
-        isPaused = recState.isPaused;
+        return; // 未知の状態の場合は処理をスキップ
     }
 
     const obsStatePayload = { type: 'obs_recording_state', payload: { isRecording, isPaused } };
