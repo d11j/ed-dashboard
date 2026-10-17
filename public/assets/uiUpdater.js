@@ -2,6 +2,7 @@ let previousState = null;
 
 const statusIndicator = document.getElementById('status-indicator');
 const recordButton = document.getElementById('record-button');
+const pauseButton = document.getElementById('pause-button');
 const resumeButton = document.getElementById('resume-session-button');
 const logDisplay = document.getElementById('event-log-display');
 
@@ -226,9 +227,19 @@ function updateScanIndicators(valuableBodyFound) {
     updateIndicator('indicator-terraformable', valuableBodyFound.terraformable);
 }
 
-function updateRecordingStatusUI(isRec) {
+function updateRecordingStatusUI(isRec, isPaused = false) {
     recordButton.classList.toggle('recording', isRec);
     recordButton.textContent = isRec ? 'STOP RECORDING' : 'START RECORDING';
+
+    if (pauseButton) {
+        if (isRec) {
+            pauseButton.style.display = 'inline-block';
+            pauseButton.classList.toggle('paused', isPaused);
+            pauseButton.textContent = isPaused ? 'RESUME RECORDING' : 'PAUSE RECORDING';
+        } else {
+            pauseButton.style.display = 'none';
+        }
+    }
 }
 
 function updateLogUI(logEntries) {

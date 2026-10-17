@@ -186,7 +186,7 @@ deactivate Server
 |:--- |:---|:---|
 | full_update | 最新の統計情報をすべて送信する。クライアントの初回接続時や状態リセット後に送信される。| `{ "bounty": { "count": 10, ... }, ... }` |
 | log_update | 更新されたイベントログの配列を送信する。| `["[00:00:00] -- 録画開始 --"]`|
-| obs_recording_state | OBSの録画ステータスの変更をクライアントに通知する。 | `{ "isRecording": true }`| 
+| obs_recording_state | OBSの録画ステータスの変更をクライアントに通知する。 | `{ "isRecording": true, "isPaused": false }`| 
 | history_update | 過去のセッション履歴を送信する。 | `[{ "date": "2023-10-27", "profit": 100000, ... }]` |
 | layout_apply | レイアウトの更新を通知する。 | `{'columns': {'left-column': ['rank-progression', ...], 'right-column': ['combat', ...]}, 'collapsed': {'toggle-progress': true}}` |
 
@@ -201,6 +201,9 @@ deactivate Server
 | get_history | サーバーに過去のセッション履歴の取得を要求する。 | `null` |
 | start_obs_recording | サーバーにOBSの録画開始を要求する。 | `null` |
 | stop_obs_recording | サーバーにOBSの録画停止を要求する。 | `null` |
+| pause_obs_recording | サーバーにOBSの録画一時停止を要求する。 | `null` |
+| resume_obs_recording | サーバーにOBSの録画再開を要求する。 | `null` |
+| toggle_pause_obs_recording | サーバーにOBSの録画一時停止の切り替えを要求する。 | `null` |
 | layout_update | レイアウトの変更をサーバに通知する。 | `{'columns': {'left-column': ['rank-progression', ...], 'right-column': ['combat', ...]}, 'collapsed': {'toggle-progress': true}}` |
 
 ## 5. 永続化と可視化 (Persistence & Visualization)

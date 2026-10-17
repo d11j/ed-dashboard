@@ -110,6 +110,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'full_update', payload: makePayload(journalProcessor.state) }));
     ws.send(JSON.stringify({ type: 'log_update', payload: journalProcessor.eventLog })); // 接続時に現在のログを送信
     ws.send(JSON.stringify({ type: 'layout_apply', payload: db.data.layout })); // 接続時にDBから読み込んだ順序を送信
+    ws.send(JSON.stringify({ type: 'obs_recording_state', payload: journalProcessor.getRecordingState() })); // 接続時に録画状態を送信
 
     ws.on('message', async (message) => {
         try {
@@ -122,6 +123,12 @@ wss.on('connection', (ws) => {
                 await obs.call('StartRecord');
             } else if (data.type === 'stop_obs_recording') {
                 await obs.call('StopRecord');
+            } else if (data.type === 'pause_obs_recording') {
+                await obs.call('PauseRecord');
+            } else if (data.type === 'resume_obs_recording') {
+                await obs.call('ResumeRecord');
+            } else if (data.type === 'toggle_pause_obs_recording') {
+                await obs.call('ToggleRecordPause');
             } else if (data.type === 'layout_update') {
                 db.data.layout = data.payload;
                 await db.write(); // DBにレイアウトを保存
@@ -162,6 +169,28 @@ async function connectToOBSAtStartup() {
                 { eventSubscriptions: EventSubscription.Outputs }
             );
             console.log('OBS WebSocketに接続しました。');
+            try {
+                const { outputActive, outputPaused } = await obs.call('GetRecordStatus');
+                if (outputActive) {
+                    if (outputPaused) {
+                        journalProcessor.handleRecordingStarted(new Date());
+                        journalProcessor.handleRecordingPaused(new Date());
+                    } else {
+                        journalProcessor.handleRecordingStarted(new Date());
+                    }
+                    const obsStatePayload = {
+                        type: 'obs_recording_state',
+                        payload: journalProcessor.getRecordingState()
+                    };
+                    wss.clients.forEach(client => {
+                        if (client.readyState === client.OPEN) {
+                            client.send(JSON.stringify(obsStatePayload));
+                        }
+                    });
+                }
+            } catch {
+                // GetRecordStatus失敗は無視
+            }
             return; // 接続に成功したので関数を終了
         } catch (error) {
             if (i < MAX_OBS_RETRIES - 1) {
@@ -180,15 +209,52 @@ obs.on('ConnectionClosed', () => {
 });
 
 obs.on('RecordStateChanged', (data) => {
-    if (!data.outputPath) {
+    console.log(`RecordStateChanged: ${JSON.stringify(data)}`);
+    const { outputActive, outputState } = data;
+
+    // 遷移途中の状態（STARTING, STOPPING, PAUSING, RESUMING）は確定状態を待つ
+    if ([
+        'OBS_WEBSOCKET_OUTPUT_STARTING',
+        'OBS_WEBSOCKET_OUTPUT_STOPPING',
+        'OBS_WEBSOCKET_OUTPUT_PAUSING',
+        'OBS_WEBSOCKET_OUTPUT_RESUMING'
+    ].includes(outputState)) {
         return;
     }
-    const isRecording = data.outputActive;
-    const obsStatePayload = { type: 'obs_recording_state', payload: { isRecording } };
-    wss.clients.forEach(client => client.send(JSON.stringify(obsStatePayload)));
-    console.log(`RecordStateChanged: ${JSON.stringify(data)}`);
 
-    journalProcessor.setRecordingState(isRecording, new Date());
+    let isRecording = outputActive;
+    let isPaused = false;
+
+    if (outputState === 'OBS_WEBSOCKET_OUTPUT_STARTED') {
+        isRecording = true;
+        isPaused = false;
+        journalProcessor.handleRecordingStarted(new Date());
+    } else if (outputState === 'OBS_WEBSOCKET_OUTPUT_PAUSED') {
+        isRecording = true;
+        isPaused = true;
+        journalProcessor.handleRecordingPaused(new Date());
+    } else if (outputState === 'OBS_WEBSOCKET_OUTPUT_RESUMED') {
+        isRecording = true;
+        isPaused = false;
+        journalProcessor.handleRecordingResumed(new Date());
+    } else if (outputState === 'OBS_WEBSOCKET_OUTPUT_STOPPED') {
+        isRecording = false;
+        isPaused = false;
+        journalProcessor.handleRecordingStopped(new Date());
+    } else {
+        // outputState が未定義または未知の場合（旧バージョンフォールバック）
+        journalProcessor.setRecordingState(outputActive, new Date());
+        const recState = journalProcessor.getRecordingState();
+        isRecording = recState.isRecording;
+        isPaused = recState.isPaused;
+    }
+
+    const obsStatePayload = { type: 'obs_recording_state', payload: { isRecording, isPaused } };
+    wss.clients.forEach(client => {
+        if (client.readyState === client.OPEN) {
+            client.send(JSON.stringify(obsStatePayload));
+        }
+    });
 });
 
 /**

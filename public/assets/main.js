@@ -2,11 +2,13 @@ import { applyCardOrder, setStatusUI, updateLogUI, updateRecordingStatusUI, upda
 import { connect, sendMessage } from './websocketClient.js';
 
 let isRecording = false;
+let isPaused = false;
 
 // --- DOM Element References ---
 const resetButton = document.getElementById('reset-button');
 const resumeButton = document.getElementById('resume-session-button');
 const recordButton = document.getElementById('record-button');
+const pauseButton = document.getElementById('pause-button');
 const copyLogButton = document.getElementById('copy-log-button');
 const logDisplay = document.getElementById('event-log-display');
 
@@ -32,7 +34,8 @@ document.addEventListener('ws:full_update', (event) => {
 
 document.addEventListener('ws:obs_recording_state', (event) => {
     isRecording = event.detail.isRecording;
-    updateRecordingStatusUI(isRecording);
+    isPaused = !!event.detail.isPaused;
+    updateRecordingStatusUI(isRecording, isPaused);
 });
 
 document.addEventListener('ws:log_update', (event) => {
@@ -60,6 +63,14 @@ recordButton.addEventListener('click', () => {
     sendMessage(command);
     console.log(`${command} 要求を送信しました。`);
 });
+
+if (pauseButton) {
+    pauseButton.addEventListener('click', () => {
+        const command = isPaused ? 'resume_obs_recording' : 'pause_obs_recording';
+        sendMessage(command);
+        console.log(`${command} 要求を送信しました。`);
+    });
+}
 
 copyLogButton.addEventListener('click', () => {
     if (logDisplay.value) {
