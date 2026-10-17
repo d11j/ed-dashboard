@@ -20,7 +20,11 @@ export class JournalProcessor extends EventEmitter {
     #isLandingSequence = false;  // 着陸シーケンス中
     #wasLandingGearDown = false; // ランディングギアの以前の状態
     #isInitialTakeoffComplete = false; // セッション開始後の初回離陸が完了したか
+    #isRecording = false; // 録画中フラグ
+    #isRecordingPaused = false; // 録画一時停止中フラグ
     #recordingStartTime = null; // 録画開始時刻
+    #recordingSegmentStartTime = null; // 現在の録画区間の開始時刻
+    #recordedDuration = 0; // 一時停止前までに蓄積された録画時間（ミリ秒）
     #isInGame = false; // ゲームのメインモードかどうか
     #isLoading = false; // LoadGame～Locationの間trueになるフラグ
     #isInitialLoaded = false; // 初回ロードが完了したかどうか
@@ -187,25 +191,106 @@ export class JournalProcessor extends EventEmitter {
     }
 
     /**
-     * 録画状態を変更する (server.jsからOBSのイベントに応じて呼び出す)
-     * @param {boolean} isRecording - 録画中であるか
-     * @param {Date | null} startTime - 録画開始時刻
+     * 現在の録画状態（録画中か、一時停止中か）を返す
+     * @returns {{ isRecording: boolean, isPaused: boolean }}
      */
-    setRecordingState(isRecording, startTime = null) {
-        if (isRecording) {
-            this.#recordingStartTime = startTime;
-            this.eventLog = ['[00:00:00] -- 録画開始 --'];
-            console.log(`録画開始: ${this.#recordingStartTime}`);
-        } else {
-            if (this.#recordingStartTime) {
-                const elapsedTime = formatElapsedTime(new Date() - this.#recordingStartTime);
-                this.eventLog.push(`[${elapsedTime}] -- 録画停止 --`);
-                console.log(`録画停止: ${elapsedTime}`);
-            }
-            this.#recordingStartTime = null;
+    getRecordingState() {
+        return {
+            isRecording: this.#isRecording,
+            isPaused: this.#isRecordingPaused
+        };
+    }
+
+    /**
+     * 録画の動画上の経過時間（文字列: hh:mm:ss）を計算して返す
+     * 録画中でない場合は null を返す
+     * @param {Date} [now=new Date()]
+     * @returns {string|null}
+     */
+    getRecordingElapsedTime(now = new Date()) {
+        if (!this.#isRecording) {
+            return null;
         }
+        if (this.#isRecordingPaused) {
+            return formatElapsedTime(this.#recordedDuration);
+        }
+        const currentSegment = this.#recordingSegmentStartTime ? (now - this.#recordingSegmentStartTime) : 0;
+        return formatElapsedTime(this.#recordedDuration + Math.max(0, currentSegment));
+    }
+
+    /**
+     * 録画開始を処理する
+     * @param {Date} [startTime=new Date()]
+     */
+    handleRecordingStarted(startTime = new Date()) {
+        this.#isRecording = true;
+        this.#isRecordingPaused = false;
+        this.#recordingStartTime = startTime;
+        this.#recordingSegmentStartTime = startTime;
+        this.#recordedDuration = 0;
+        this.eventLog = ['[00:00:00] -- 録画開始 --'];
+        console.log(`録画開始: ${this.#recordingStartTime}`);
         this.emit('logUpdate', this.eventLog);
     }
+
+    /**
+     * 録画一時停止を処理する
+     * @param {Date} [pauseTime=new Date()]
+     */
+    handleRecordingPaused(pauseTime = new Date()) {
+        if (!this.#isRecording || this.#isRecordingPaused) {
+            return;
+        }
+        if (this.#recordingSegmentStartTime) {
+            this.#recordedDuration += Math.max(0, pauseTime - this.#recordingSegmentStartTime);
+        }
+        this.#recordingSegmentStartTime = null;
+        this.#isRecordingPaused = true;
+        const elapsedTime = formatElapsedTime(this.#recordedDuration);
+        this.eventLog.push(`[${elapsedTime}] -- 録画一時停止 --`);
+        console.log(`録画一時停止: ${elapsedTime}`);
+        this.emit('logUpdate', this.eventLog);
+    }
+
+    /**
+     * 録画再開を処理する
+     * @param {Date} [resumeTime=new Date()]
+     */
+    handleRecordingResumed(resumeTime = new Date()) {
+        if (!this.#isRecording || !this.#isRecordingPaused) {
+            return;
+        }
+        this.#recordingSegmentStartTime = resumeTime;
+        this.#isRecordingPaused = false;
+        const elapsedTime = formatElapsedTime(this.#recordedDuration);
+        this.eventLog.push(`[${elapsedTime}] -- 録画再開 --`);
+        console.log(`録画再開: ${elapsedTime}`);
+        this.emit('logUpdate', this.eventLog);
+    }
+
+    /**
+     * 録画停止を処理する
+     * @param {Date} [stopTime=new Date()]
+     */
+    handleRecordingStopped(stopTime = new Date()) {
+        if (!this.#isRecording) {
+            return;
+        }
+        if (!this.#isRecordingPaused && this.#recordingSegmentStartTime) {
+            this.#recordedDuration += Math.max(0, stopTime - this.#recordingSegmentStartTime);
+        }
+        const elapsedTime = formatElapsedTime(this.#recordedDuration);
+        this.eventLog.push(`[${elapsedTime}] -- 録画停止 --`);
+        console.log(`録画停止: ${elapsedTime}`);
+
+        this.#isRecording = false;
+        this.#isRecordingPaused = false;
+        this.#recordingStartTime = null;
+        this.#recordingSegmentStartTime = null;
+        this.#recordedDuration = 0;
+        this.emit('logUpdate', this.eventLog);
+    }
+
 
     /**
      * 燃料履歴を1分ごとに記録するタイマーを開始する
@@ -333,23 +418,24 @@ export class JournalProcessor extends EventEmitter {
         const shouldCancelLandingSequence = !isLandingGearDown && this.#isLandingSequence;
 
         // 録画中の場合はログを生成
-        if (this.#recordingStartTime) {
-            const elapsedTime = formatElapsedTime(now - this.#recordingStartTime);
+        if (this.#isRecording) {
+            const elapsedTime = this.getRecordingElapsedTime(now);
+            const isPausedPrefix = this.#isRecordingPaused ? '* ' : '';
 
             // ハードポイントの状態変化ログ
             if (hardpointsChanged && !isInSupercruise) {
                 const logMessage = isHardpointsDeployed ? '-- 戦闘開始 --' : '-- 戦闘終了 --';
-                this.eventLog.push(`[${elapsedTime}] ${logMessage}`);
+                this.eventLog.push(`${isPausedPrefix}[${elapsedTime}] ${logMessage}`);
                 this.emit('logUpdate', this.eventLog);
             }
 
             // 着陸シーケンスのログ
             if (landingGearChanged) {
                 if (shouldStartLandingSequence) {
-                    this.eventLog.push(`[${elapsedTime}] -- 着陸開始 --`);
+                    this.eventLog.push(`${isPausedPrefix}[${elapsedTime}] -- 着陸開始 --`);
                     this.emit('logUpdate', this.eventLog);
                 } else if (shouldCancelLandingSequence) {
-                    this.eventLog.push(`[${elapsedTime}] -- 着陸中断 --`);
+                    this.eventLog.push(`${isPausedPrefix}[${elapsedTime}] -- 着陸中断 --`);
                     this.emit('logUpdate', this.eventLog);
                 }
             }
@@ -415,11 +501,11 @@ export class JournalProcessor extends EventEmitter {
      * @param {boolean} [isMinorEvent=false] - 重要度が低いイベント（ログ上では `*` を付ける）か
      */
     #logEvent(entry, isMinorEvent = false) {
-        if (!this.#recordingStartTime) {
+        if (!this.#isRecording) {
             return;
         }
 
-        const elapsedTime = formatElapsedTime(new Date() - this.#recordingStartTime);
+        const elapsedTime = this.getRecordingElapsedTime(new Date());
         let logMessage = '';
 
         switch (entry.event) {
@@ -456,6 +542,10 @@ export class JournalProcessor extends EventEmitter {
         }
 
         if (logMessage) {
+            if (this.#isRecordingPaused) {
+                // 一時停止中のイベントは動画に含まれないためチャプター除外されるようマイナー扱いにする
+                isMinorEvent = true;
+            }
             const prefix = isMinorEvent ? '* ' : '';
             this.eventLog.push(`${prefix}[${elapsedTime}] ${logMessage}`);
             this.emit('logUpdate', this.eventLog);

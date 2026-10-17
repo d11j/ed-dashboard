@@ -66,13 +66,17 @@ vi.mock('lowdb/node', () => {
 });
 
 // OBS WebSocket クライアントのモック (実際のOBSへの接続試行を防止)
+const obsEventListeners = {};
+const mockObsCall = vi.fn().mockResolvedValue({});
 vi.mock('obs-websocket-js', () => {
     return {
         OBSWebSocket: class {
             connect = vi.fn().mockResolvedValue(undefined);
-            on = vi.fn();
-            call = vi.fn().mockResolvedValue({});
-            identified = false;
+            on = vi.fn((event, cb) => {
+                obsEventListeners[event] = cb;
+            });
+            call = mockObsCall;
+            identified = true;
         },
         EventSubscription: {
             Outputs: 'Outputs'
@@ -185,10 +189,11 @@ describe('Server Integration', () => {
         // 2. Act: WebSocket接続を確立し、初期メッセージを受信
         const messages = await receiveMessages();
 
-        // 3. Assert: 期待される3種類の更新イベントメッセージがすべて含まれていることを検証
+        // 3. Assert: 期待される4種類の更新イベントメッセージがすべて含まれていることを検証
         expect(messages.some(m => m.type === 'full_update')).toBe(true);
         expect(messages.some(m => m.type === 'log_update')).toBe(true);
         expect(messages.some(m => m.type === 'layout_apply')).toBe(true);
+        expect(messages.some(m => m.type === 'obs_recording_state')).toBe(true);
     });
 
     it('should handle layout_update message with collapsed state, write to DB and broadcast to other clients', async () => {
@@ -315,6 +320,81 @@ describe('Server Integration', () => {
         // 3. Assert: 返ってきたデータ構造が正しいか検証 (モックDBのデフォルト履歴配列)
         expect(response).toHaveProperty('payload');
         expect(Array.isArray(response.payload)).toBe(true);
+    });
+
+    it('should handle OBS RecordStateChanged events (started, paused, resumed, stopped) and broadcast to clients', async () => {
+        const client = new WebSocket(`ws://localhost:${allocatedPort}`);
+        await new Promise((resolve) => client.on('open', resolve));
+
+        const receivedStates = [];
+        client.on('message', (data) => {
+            const msg = JSON.parse(data);
+            if (msg.type === 'obs_recording_state') {
+                receivedStates.push(msg.payload);
+            }
+        });
+
+        // 1. STARTED
+        obsEventListeners['RecordStateChanged']?.({
+            outputActive: true,
+            outputState: 'OBS_WEBSOCKET_OUTPUT_STARTED',
+            outputPath: null
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // 2. PAUSED
+        obsEventListeners['RecordStateChanged']?.({
+            outputActive: true,
+            outputState: 'OBS_WEBSOCKET_OUTPUT_PAUSED',
+            outputPath: null
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // 3. RESUMED
+        obsEventListeners['RecordStateChanged']?.({
+            outputActive: true,
+            outputState: 'OBS_WEBSOCKET_OUTPUT_RESUMED',
+            outputPath: null
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        // 4. STOPPED
+        obsEventListeners['RecordStateChanged']?.({
+            outputActive: false,
+            outputState: 'OBS_WEBSOCKET_OUTPUT_STOPPED',
+            outputPath: 'C:\\recordings\\test.mp4'
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        client.close();
+
+        // 初期接続分を除く、RecordStateChanged 経由の4件を確認
+        const states = receivedStates.slice(-4);
+        expect(states).toEqual([
+            { isRecording: true, isPaused: false },
+            { isRecording: true, isPaused: true },
+            { isRecording: true, isPaused: false },
+            { isRecording: false, isPaused: false }
+        ]);
+    });
+
+    it('should handle client pause and resume messages and call OBS requests', async () => {
+        const client = new WebSocket(`ws://localhost:${allocatedPort}`);
+        await new Promise((resolve) => client.on('open', resolve));
+
+        mockObsCall.mockClear();
+
+        client.send(JSON.stringify({ type: 'pause_obs_recording' }));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockObsCall).toHaveBeenCalledWith('PauseRecord');
+
+        mockObsCall.mockClear();
+
+        client.send(JSON.stringify({ type: 'resume_obs_recording' }));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(mockObsCall).toHaveBeenCalledWith('ResumeRecord');
+
+        client.close();
     });
 });
 

@@ -440,6 +440,27 @@ td:last-child {
     background-color: #c82333;
 }
 
+.pause-button {
+    background-color: #ffc107;
+    color: #212529;
+    padding: 5px 10px;
+    margin-left: 5px;
+    font-weight: bold;
+}
+
+.pause-button:hover {
+    background-color: #e0a800;
+}
+
+.pause-button.paused {
+    background-color: #17a2b8;
+    color: white;
+}
+
+.pause-button.paused:hover {
+    background-color: #138496;
+}
+
 .copy-button {
     background-color: #007bff;
     color: white;

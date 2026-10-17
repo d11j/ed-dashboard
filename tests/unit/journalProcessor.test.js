@@ -391,5 +391,52 @@ describe('JournalProcessor', () => {
         expect(state.missions.passengersOnBoard).toBe(0);
         expect(state.missions.isRescueMissionActive).toBe(false);
     }, 15000);
+
+    describe('Recording and pause handling', () => {
+        it('should track recording and pause states and prevent timestamp drift', () => {
+            const baseTime = new Date('2026-10-17T10:00:00Z');
+            vi.useFakeTimers();
+            vi.setSystemTime(baseTime);
+
+            const testProcessor = new JournalProcessor(getInitialState());
+
+            // 1. 録画開始
+            testProcessor.handleRecordingStarted(baseTime);
+            expect(testProcessor.getRecordingState()).toEqual({ isRecording: true, isPaused: false });
+            expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:00:00');
+            expect(testProcessor.eventLog).toContain('[00:00:00] -- 録画開始 --');
+
+            // 2. 1分30秒経過
+            vi.advanceTimersByTime(90 * 1000);
+            expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:01:30');
+
+            // 3. 録画一時停止 (00:01:30 時点)
+            testProcessor.handleRecordingPaused(new Date());
+            expect(testProcessor.getRecordingState()).toEqual({ isRecording: true, isPaused: true });
+            expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:01:30');
+            expect(testProcessor.eventLog).toContain('[00:01:30] -- 録画一時停止 --');
+
+            // 4. 一時停止中に5分間経過 (実時間は進むが動画時間は 00:01:30 のまま)
+            vi.advanceTimersByTime(300 * 1000);
+            expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:01:30');
+
+            // 5. 録画再開
+            testProcessor.handleRecordingResumed(new Date());
+            expect(testProcessor.getRecordingState()).toEqual({ isRecording: true, isPaused: false });
+            expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:01:30');
+            expect(testProcessor.eventLog).toContain('[00:01:30] -- 録画再開 --');
+
+            // 6. 再開後さらに30秒経過 (合計録画時間は 00:02:00 になる)
+            vi.advanceTimersByTime(30 * 1000);
+            expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:02:00');
+
+            // 7. 録画停止 (00:02:00)
+            testProcessor.handleRecordingStopped(new Date());
+            expect(testProcessor.getRecordingState()).toEqual({ isRecording: false, isPaused: false });
+            expect(testProcessor.eventLog).toContain('[00:02:00] -- 録画停止 --');
+
+            vi.useRealTimers();
+        });
+    });
 });
 
