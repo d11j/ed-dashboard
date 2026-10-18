@@ -36,8 +36,6 @@ export class JournalProcessor extends EventEmitter {
     #scannedBodiesInSystem = new Set();
     #targetPrefixes = new Set();
     #fuelHistoryTimer = null; // 燃料履歴記録用のタイマーID
-    #isInSupercruise = false; // スーパークルーズ中フラグ
-    #lastDestinationDropName = null; // 直前のドロップ先名称
 
     #eventHandlers;
 
@@ -56,10 +54,6 @@ export class JournalProcessor extends EventEmitter {
             'Bounty': this.#handleBounty,
             'FSDJump': this.#handleLocationChange,
             'Location': this.#handleLocationChange,
-            'SupercruiseEntry': this.#handleSupercruiseEntry,
-            'SupercruiseExit': this.#handleSupercruiseExit,
-            'SupercruiseDestinationDrop': this.#handleSupercruiseDestinationDrop,
-            'USSDrop': this.#handleUSSDrop,
             'DockingGranted': this.#handleDockingGranted,
             'DockingCancelled': this.#handleDockingCancelled,
             'Docked': this.#handleDockingComplete,
@@ -105,14 +99,6 @@ export class JournalProcessor extends EventEmitter {
     /** 復元可能状態フラグを返す */
     isResumable() {
         return this.#isResumable;
-    }
-
-    /**
-     * 現在スーパークルーズ中かどうかを返す
-     * @returns {boolean}
-     */
-    isInSupercruise() {
-        return this.#isInSupercruise;
     }
 
     /**
@@ -261,7 +247,7 @@ export class JournalProcessor extends EventEmitter {
         this.#recordingSegmentStartTime = null;
         this.#isRecordingPaused = true;
         const elapsedTime = formatElapsedTime(this.#recordedDuration);
-        this.eventLog.push(`* [${elapsedTime}] -- 録画一時停止 --`);
+        this.eventLog.push(`[${elapsedTime}] -- 録画一時停止 --`);
         console.log(`録画一時停止: ${elapsedTime}`);
         this.emit('logUpdate', this.eventLog);
     }
@@ -277,7 +263,7 @@ export class JournalProcessor extends EventEmitter {
         this.#recordingSegmentStartTime = resumeTime;
         this.#isRecordingPaused = false;
         const elapsedTime = formatElapsedTime(this.#recordedDuration);
-        this.eventLog.push(`* [${elapsedTime}] -- 録画再開 --`);
+        this.eventLog.push(`[${elapsedTime}] -- 録画再開 --`);
         console.log(`録画再開: ${elapsedTime}`);
         this.emit('logUpdate', this.eventLog);
     }
@@ -401,7 +387,7 @@ export class JournalProcessor extends EventEmitter {
         const stream = fs.createReadStream(filePath, { encoding: 'utf-8', start });
         const rl = createInterface({ input: stream, crlfDelay: Infinity });
         for await (const line of rl) {
-            this.processJournalLine(line);
+            this.#processJournalLine(line);
         }
         this.#processedFiles[filePath] = end;
     }
@@ -458,7 +444,6 @@ export class JournalProcessor extends EventEmitter {
         // 内部状態フラグを更新
         this.#wasHardpointsDeployed = isHardpointsDeployed;
         this.#wasLandingGearDown = isLandingGearDown;
-        this.#isInSupercruise = isInSupercruise;
 
         // 着陸シーケンスの状態を更新
         if (landingGearChanged) {
@@ -480,7 +465,7 @@ export class JournalProcessor extends EventEmitter {
      * ジャーナル行をパースし、イベントハンドラマップを介して適切な処理メソッドに振り分ける
      * @param {string} line - ジャーナルファイルから読み込んだ単一の行
      */
-    processJournalLine(line) {
+    #processJournalLine(line) {
         try {
             if (line.trim() === '') {
                 return;
@@ -532,18 +517,6 @@ export class JournalProcessor extends EventEmitter {
             case 'FSDJump':
                 logMessage = `ジャンプ: ${entry.StarSystem} へ`;
                 break;
-            case 'SupercruiseEntry':
-                logMessage = '-- スーパークルーズ開始 --';
-                break;
-            case 'SupercruiseExit': {
-                let target = this.#lastDestinationDropName || '';
-                if (!target && entry.Body && entry.BodyType !== 'Null') {
-                    target = entry.Body;
-                }
-                logMessage = target ? `ドロップ: ${target}` : '-- スーパークルーズ終了 --';
-                this.#lastDestinationDropName = null;
-                break;
-            }
             case 'DockingGranted':
                 logMessage = '-- 着陸開始 --';
                 break;
@@ -667,50 +640,6 @@ export class JournalProcessor extends EventEmitter {
         }
         this.#isLandingSequence = false;
         this.#wasLandingGearDown = true;
-        this.#isInSupercruise = false;
-    }
-
-    /**
-     * SupercruiseEntryイベントを処理し、スーパークルーズ状態を開始する
-     * @param {object} _entry - SupercruiseEntryイベントのジャーナルエントリ
-     */
-    #handleSupercruiseEntry(_entry) {
-        this.#isInSupercruise = true;
-        this.#lastDestinationDropName = null;
-    }
-
-    /**
-     * SupercruiseExitイベントを処理し、スーパークルーズ状態を終了する
-     * @param {object} _entry - SupercruiseExitイベントのジャーナルエントリ
-     */
-    #handleSupercruiseExit(_entry) {
-        this.#isInSupercruise = false;
-    }
-
-    /**
-     * SupercruiseDestinationDropイベントを処理し、ドロップ先名称を一時保持する
-     * @param {object} entry - SupercruiseDestinationDropイベントのジャーナルエントリ
-     */
-    #handleSupercruiseDestinationDrop(entry) {
-        // USSへのドロップは個別種別を問わず一律 'USS' とする
-        if (entry.Type && entry.Type.includes('USS')) {
-            this.#lastDestinationDropName = 'USS';
-            return;
-        }
-
-        // ローカライズ名があればそれを優先、なければ生キーでない通常の名称を採用
-        const name = entry.Type_Localised || entry.Type;
-        if (name && !name.startsWith('$')) {
-            this.#lastDestinationDropName = name;
-        }
-    }
-
-    /**
-     * USSDropイベントを処理し、ドロップ先を 'USS' として保持する
-     * @param {object} _entry - USSDropイベントのジャーナルエントリ
-     */
-    #handleUSSDrop(_entry) {
-        this.#lastDestinationDropName = 'USS';
     }
 
     /**
@@ -750,20 +679,14 @@ export class JournalProcessor extends EventEmitter {
             this.state.exploration.jumpDistance += entry.JumpDist;
         }
 
-        // FSDジャンプ時にインジケータをリセットし、スーパークルーズ状態を開始
+        // FSDジャンプ時にインジケータをリセット
         if (entry.event === 'FSDJump') {
-            this.#isInSupercruise = true;
-            this.#lastDestinationDropName = null;
             this.state.exploration.valuableBodyFound = {
                 elw: false,
                 ww: false,
                 aw: false,
                 terraformable: false
             };
-        } else if (entry.event === 'Location') {
-            if (entry.Docked) {
-                this.#isInSupercruise = false;
-            }
         }
 
     }
@@ -796,8 +719,6 @@ export class JournalProcessor extends EventEmitter {
         if (this.#isLandingSequence) {
             this.#isLandingSequence = false;
         }
-        this.#isInSupercruise = false;
-        this.#lastDestinationDropName = null;
     }
 
     /**
