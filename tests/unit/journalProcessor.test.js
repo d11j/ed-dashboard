@@ -414,7 +414,7 @@ describe('JournalProcessor', () => {
             testProcessor.handleRecordingPaused(new Date());
             expect(testProcessor.getRecordingState()).toEqual({ isRecording: true, isPaused: true });
             expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:01:30');
-            expect(testProcessor.eventLog).toContain('[00:01:30] -- 録画一時停止 --');
+            expect(testProcessor.eventLog).toContain('* [00:01:30] -- 録画一時停止 --');
 
             // 4. 一時停止中に5分間経過 (実時間は進むが動画時間は 00:01:30 のまま)
             vi.advanceTimersByTime(300 * 1000);
@@ -424,7 +424,7 @@ describe('JournalProcessor', () => {
             testProcessor.handleRecordingResumed(new Date());
             expect(testProcessor.getRecordingState()).toEqual({ isRecording: true, isPaused: false });
             expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:01:30');
-            expect(testProcessor.eventLog).toContain('[00:01:30] -- 録画再開 --');
+            expect(testProcessor.eventLog).toContain('* [00:01:30] -- 録画再開 --');
 
             // 6. 再開後さらに30秒経過 (合計録画時間は 00:02:00 になる)
             vi.advanceTimersByTime(30 * 1000);
@@ -477,7 +477,7 @@ describe('JournalProcessor', () => {
             }));
 
             expect(testProcessor.isInSupercruise()).toBe(false);
-            expect(testProcessor.eventLog.some(l => l.includes('離脱: Bunuson 1'))).toBe(true);
+            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: Bunuson 1'))).toBe(true);
 
             // 2. SupercruiseDestinationDrop による Nav Beacon へのドロップ
             testProcessor.processJournalLine(JSON.stringify({
@@ -500,7 +500,7 @@ describe('JournalProcessor', () => {
             }));
 
             expect(testProcessor.isInSupercruise()).toBe(false);
-            expect(testProcessor.eventLog.some(l => l.includes('離脱: Nav Beacon'))).toBe(true);
+            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: Nav Beacon'))).toBe(true);
 
             // 3. USSDrop によるUSSへのドロップ（種別を問わず一律 '離脱: USS'）
             testProcessor.processJournalLine(JSON.stringify({
@@ -523,7 +523,7 @@ describe('JournalProcessor', () => {
             }));
 
             expect(testProcessor.isInSupercruise()).toBe(false);
-            expect(testProcessor.eventLog.some(l => l.includes('離脱: USS'))).toBe(true);
+            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: USS'))).toBe(true);
 
             // 4. ドロップ先情報がなく BodyType が Null の場合
             testProcessor.processJournalLine(JSON.stringify({
@@ -574,7 +574,7 @@ describe('JournalProcessor', () => {
             }));
 
             expect(testProcessor.isInSupercruise()).toBe(false);
-            expect(testProcessor.eventLog.some(l => l.includes('離脱: WHITE SENTINEL QFG-72N'))).toBe(true);
+            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: WHITE SENTINEL QFG-72N'))).toBe(true);
         });
 
         it('should correctly process combat sample log file and generate chapters', () => {
@@ -595,7 +595,7 @@ describe('JournalProcessor', () => {
             expect(scStartLogs.length).toBeGreaterThan(0);
 
             // 離脱ログが出力されていること
-            const scExitLogs = testProcessor.eventLog.filter(l => l.includes('離脱: '));
+            const scExitLogs = testProcessor.eventLog.filter(l => l.includes('ドロップ: '));
             expect(scExitLogs.length).toBeGreaterThan(0);
 
             // ジャンプログが出力されていること
