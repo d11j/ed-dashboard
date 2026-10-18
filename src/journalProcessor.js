@@ -261,7 +261,7 @@ export class JournalProcessor extends EventEmitter {
         this.#recordingSegmentStartTime = null;
         this.#isRecordingPaused = true;
         const elapsedTime = formatElapsedTime(this.#recordedDuration);
-        this.eventLog.push(`[${elapsedTime}] -- 録画一時停止 --`);
+        this.eventLog.push(`* [${elapsedTime}] -- 録画一時停止 --`);
         console.log(`録画一時停止: ${elapsedTime}`);
         this.emit('logUpdate', this.eventLog);
     }
@@ -277,7 +277,7 @@ export class JournalProcessor extends EventEmitter {
         this.#recordingSegmentStartTime = resumeTime;
         this.#isRecordingPaused = false;
         const elapsedTime = formatElapsedTime(this.#recordedDuration);
-        this.eventLog.push(`[${elapsedTime}] -- 録画再開 --`);
+        this.eventLog.push(`* [${elapsedTime}] -- 録画再開 --`);
         console.log(`録画再開: ${elapsedTime}`);
         this.emit('logUpdate', this.eventLog);
     }
@@ -540,7 +540,7 @@ export class JournalProcessor extends EventEmitter {
                 if (!target && entry.Body && entry.BodyType !== 'Null') {
                     target = entry.Body;
                 }
-                logMessage = target ? `離脱: ${target}` : '-- スーパークルーズ終了 --';
+                logMessage = target ? `ドロップ: ${target}` : '-- スーパークルーズ終了 --';
                 this.#lastDestinationDropName = null;
                 break;
             }
