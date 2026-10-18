@@ -414,7 +414,7 @@ describe('JournalProcessor', () => {
             testProcessor.handleRecordingPaused(new Date());
             expect(testProcessor.getRecordingState()).toEqual({ isRecording: true, isPaused: true });
             expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:01:30');
-            expect(testProcessor.eventLog).toContain('[00:01:30] -- 録画一時停止 --');
+            expect(testProcessor.eventLog).toContain('* [00:01:30] -- 録画一時停止 --');
 
             // 4. 一時停止中に5分間経過 (実時間は進むが動画時間は 00:01:30 のまま)
             vi.advanceTimersByTime(300 * 1000);
@@ -424,7 +424,7 @@ describe('JournalProcessor', () => {
             testProcessor.handleRecordingResumed(new Date());
             expect(testProcessor.getRecordingState()).toEqual({ isRecording: true, isPaused: false });
             expect(testProcessor.getRecordingElapsedTime(new Date())).toBe('00:01:30');
-            expect(testProcessor.eventLog).toContain('[00:01:30] -- 録画再開 --');
+            expect(testProcessor.eventLog).toContain('* [00:01:30] -- 録画再開 --');
 
             // 6. 再開後さらに30秒経過 (合計録画時間は 00:02:00 になる)
             vi.advanceTimersByTime(30 * 1000);
@@ -438,5 +438,171 @@ describe('JournalProcessor', () => {
             vi.useRealTimers();
         });
     });
+
+    describe('Supercruise detection and event log', () => {
+        it('should detect SupercruiseEntry and output timestamp', () => {
+            const baseTime = new Date('2026-10-17T10:00:00Z');
+            const testProcessor = new JournalProcessor(getInitialState());
+            testProcessor.handleRecordingStarted(baseTime);
+
+            expect(testProcessor.isInSupercruise()).toBe(false);
+
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:01:00Z',
+                event: 'SupercruiseEntry',
+                StarSystem: 'Bentin'
+            }));
+
+            expect(testProcessor.isInSupercruise()).toBe(true);
+            expect(testProcessor.eventLog.some(l => l.includes('-- スーパークルーズ開始 --'))).toBe(true);
+        });
+
+        it('should detect SupercruiseExit with destination or body name', () => {
+            const baseTime = new Date('2026-10-17T10:00:00Z');
+            const testProcessor = new JournalProcessor(getInitialState());
+            testProcessor.handleRecordingStarted(baseTime);
+
+            // 1. 通常の天体へのドロップ
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:01:00Z',
+                event: 'SupercruiseEntry',
+                StarSystem: 'Bunuson'
+            }));
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:02:00Z',
+                event: 'SupercruiseExit',
+                StarSystem: 'Bunuson',
+                Body: 'Bunuson 1',
+                BodyType: 'Planet'
+            }));
+
+            expect(testProcessor.isInSupercruise()).toBe(false);
+            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: Bunuson 1'))).toBe(true);
+
+            // 2. SupercruiseDestinationDrop による Nav Beacon へのドロップ
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:03:00Z',
+                event: 'SupercruiseEntry',
+                StarSystem: 'Eta Crucis'
+            }));
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:04:00Z',
+                event: 'SupercruiseDestinationDrop',
+                Type: '$MULTIPLAYER_SCENARIO42_TITLE;',
+                Type_Localised: 'Nav Beacon'
+            }));
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:04:03Z',
+                event: 'SupercruiseExit',
+                StarSystem: 'Eta Crucis',
+                Body: 'Eta Crucis A',
+                BodyType: 'Star'
+            }));
+
+            expect(testProcessor.isInSupercruise()).toBe(false);
+            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: Nav Beacon'))).toBe(true);
+
+            // 3. USSDrop によるUSSへのドロップ（種別を問わず一律 '離脱: USS'）
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:05:00Z',
+                event: 'SupercruiseEntry',
+                StarSystem: 'Bunuson'
+            }));
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:06:00Z',
+                event: 'USSDrop',
+                USSType: '$USS_Type_MissionTarget;',
+                USSType_Localised: 'Mission target'
+            }));
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:06:04Z',
+                event: 'SupercruiseExit',
+                StarSystem: 'Bunuson',
+                Body: 'Bunuson',
+                BodyType: 'Star'
+            }));
+
+            expect(testProcessor.isInSupercruise()).toBe(false);
+            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: USS'))).toBe(true);
+
+            // 4. ドロップ先情報がなく BodyType が Null の場合
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:07:00Z',
+                event: 'SupercruiseEntry',
+                StarSystem: 'Bentin'
+            }));
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:08:00Z',
+                event: 'SupercruiseExit',
+                StarSystem: 'Bentin',
+                Body: 'Bentin AB',
+                BodyType: 'Null'
+            }));
+
+            expect(testProcessor.isInSupercruise()).toBe(false);
+            expect(testProcessor.eventLog.some(l => l.includes('-- スーパークルーズ終了 --'))).toBe(true);
+        });
+
+        it('should treat FSDJump as entering supercruise and log exit afterwards', () => {
+            const baseTime = new Date('2026-10-17T10:00:00Z');
+            const testProcessor = new JournalProcessor(getInitialState());
+            testProcessor.handleRecordingStarted(baseTime);
+
+            // FSDJump による星系到着（自動的にスーパークルーズへ）
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:01:00Z',
+                event: 'FSDJump',
+                StarSystem: 'Bentin',
+                JumpDist: 14.36
+            }));
+
+            expect(testProcessor.isInSupercruise()).toBe(true);
+            expect(testProcessor.eventLog.some(l => l.includes('ジャンプ: Bentin へ'))).toBe(true);
+
+            // その後ステーション前へ離脱
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:02:30Z',
+                event: 'SupercruiseDestinationDrop',
+                Type: 'WHITE SENTINEL QFG-72N'
+            }));
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-17T10:02:34Z',
+                event: 'SupercruiseExit',
+                StarSystem: 'Bentin',
+                Body: 'Bentin A',
+                BodyType: 'Star'
+            }));
+
+            expect(testProcessor.isInSupercruise()).toBe(false);
+            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: WHITE SENTINEL QFG-72N'))).toBe(true);
+        });
+
+        it('should correctly process combat sample log file and generate chapters', () => {
+            const combatFixturePath = path.join(__dirname, '../fixtures/samples/combat/Journal.2026-10-17T194139.01.log');
+            const lines = fs.readFileSync(combatFixturePath, 'utf-8').split('\n');
+
+            const testProcessor = new JournalProcessor(getInitialState());
+            testProcessor.handleRecordingStarted(new Date('2026-10-17T10:40:00Z'));
+
+            for (const line of lines) {
+                if (line.trim()) {
+                    testProcessor.processJournalLine(line);
+                }
+            }
+
+            // スーパークルーズ開始ログが出力されていること
+            const scStartLogs = testProcessor.eventLog.filter(l => l.includes('-- スーパークルーズ開始 --'));
+            expect(scStartLogs.length).toBeGreaterThan(0);
+
+            // 離脱ログが出力されていること
+            const scExitLogs = testProcessor.eventLog.filter(l => l.includes('ドロップ: '));
+            expect(scExitLogs.length).toBeGreaterThan(0);
+
+            // ジャンプログが出力されていること
+            const jumpLogs = testProcessor.eventLog.filter(l => l.includes('ジャンプ: '));
+            expect(jumpLogs.length).toBeGreaterThan(0);
+        });
+    });
 });
+
 
