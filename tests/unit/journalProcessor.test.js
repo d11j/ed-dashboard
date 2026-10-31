@@ -602,6 +602,42 @@ describe('JournalProcessor', () => {
             const jumpLogs = testProcessor.eventLog.filter(l => l.includes('ジャンプ: '));
             expect(jumpLogs.length).toBeGreaterThan(0);
         });
+
+        it('should log AsteroidCracked event as 深部コア破砕 without minor flag', () => {
+            const baseTime = new Date('2024-09-13T13:00:00Z');
+            const testProcessor = new JournalProcessor(getInitialState());
+            testProcessor.handleRecordingStarted(baseTime);
+
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2024-09-13T13:26:51Z',
+                event: 'AsteroidCracked',
+                Body: 'Delkar 9 A Ring'
+            }));
+
+            expect(testProcessor.eventLog.some(l => l.includes('深部コア破砕'))).toBe(true);
+            const crackedLog = testProcessor.eventLog.find(l => l.includes('深部コア破砕'));
+            expect(crackedLog.startsWith('* ')).toBe(false);
+        });
+
+        it('should correctly process mining sample log file and generate chapters for AsteroidCracked', () => {
+            const miningFixturePath = path.join(__dirname, '../fixtures/samples/mining/Journal.2024-09-13T215529.01.log');
+            const lines = fs.readFileSync(miningFixturePath, 'utf-8').split(/\r?\n/);
+
+            const testProcessor = new JournalProcessor(getInitialState());
+            testProcessor.handleRecordingStarted(new Date('2024-09-13T12:55:00Z'));
+
+            for (const line of lines) {
+                if (line.trim()) {
+                    testProcessor.processJournalLine(line);
+                }
+            }
+
+            const crackedLogs = testProcessor.eventLog.filter(l => l.includes('深部コア破砕'));
+            expect(crackedLogs.length).toBe(4);
+            crackedLogs.forEach(log => {
+                expect(log.startsWith('* ')).toBe(false);
+            });
+        });
     });
 });
 

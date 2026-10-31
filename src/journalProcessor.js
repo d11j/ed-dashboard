@@ -566,6 +566,9 @@ export class JournalProcessor extends EventEmitter {
                 const newShip = entry.ShipType_Localised || entry.ShipType || 'Unknown';
                 logMessage = `乗り換え: ${newShip.charAt(0).toUpperCase() + newShip.slice(1)}`;
                 break;
+            case 'AsteroidCracked':
+                logMessage = '深部コア破砕';
+                break;
         }
 
         if (logMessage) {
