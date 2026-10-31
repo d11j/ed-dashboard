@@ -39,12 +39,24 @@ export class JournalProcessor extends EventEmitter {
     #isInSupercruise = false; // スーパークルーズ中フラグ
     #lastDestinationDropName = null; // 直前のドロップ先名称
 
+    #miningRushOptions = {
+        windowMs: 60 * 1000,
+        threshold: 5,
+        cooldownMs: 180 * 1000
+    };
+    #miningRefinedHistory = new Map();
+    #miningRushLastTrigger = new Map();
+
     #eventHandlers;
 
-    constructor(initialState) {
+    constructor(initialState, options = {}) {
         super();
         this.state = initialState;
         this.#isResumable = true; // 初期状態では復元可能
+
+        if (options && options.miningRush) {
+            this.setMiningRushOptions(options.miningRush);
+        }
 
         // --- イベントハンドラマップ ---
         this.#eventHandlers = {
@@ -87,6 +99,41 @@ export class JournalProcessor extends EventEmitter {
         } else {
             this.#targetPrefixes.add(this.#getCurrentPrefix());
         }
+    }
+
+    /**
+     * 採掘ラッシュ検知のパラメータを設定・更新する
+     * @param {object} options
+     * @param {number} [options.windowMs] - 判定時間枠（ミリ秒）
+     * @param {number} [options.windowSec] - 判定時間枠（秒）
+     * @param {number} [options.threshold] - 閾値（精錬完了個数）
+     * @param {number} [options.cooldownMs] - クールダウン（ミリ秒）
+     * @param {number} [options.cooldownSec] - クールダウン（秒）
+     */
+    setMiningRushOptions(options = {}) {
+        if (options.windowMs !== undefined) {
+            this.#miningRushOptions.windowMs = options.windowMs;
+        } else if (options.windowSec !== undefined) {
+            this.#miningRushOptions.windowMs = options.windowSec * 1000;
+        }
+
+        if (options.threshold !== undefined) {
+            this.#miningRushOptions.threshold = options.threshold;
+        }
+
+        if (options.cooldownMs !== undefined) {
+            this.#miningRushOptions.cooldownMs = options.cooldownMs;
+        } else if (options.cooldownSec !== undefined) {
+            this.#miningRushOptions.cooldownMs = options.cooldownSec * 1000;
+        }
+    }
+
+    /**
+     * 採掘ラッシュ検知の現在のパラメータを取得する
+     * @returns {{windowMs: number, threshold: number, cooldownMs: number}}
+     */
+    getMiningRushOptions() {
+        return { ...this.#miningRushOptions };
     }
 
     /**
@@ -243,6 +290,8 @@ export class JournalProcessor extends EventEmitter {
         this.#recordingSegmentStartTime = startTime;
         this.#recordedDuration = 0;
         this.eventLog = ['[00:00:00] -- 録画開始 --'];
+        this.#miningRefinedHistory.clear();
+        this.#miningRushLastTrigger.clear();
         console.log(`録画開始: ${this.#recordingStartTime}`);
         this.emit('logUpdate', this.eventLog);
     }
@@ -331,6 +380,8 @@ export class JournalProcessor extends EventEmitter {
         this.#activePassengerMissions.clear();
         this.#isResumable = true; // リセット後は復元可能にする
         this.#efficiencyStartTime = new Date();
+        this.#miningRefinedHistory.clear();
+        this.#miningRushLastTrigger.clear();
         this.#startFuelHistoryTimer(); // タイマーもリセットして開始
         this.#requestUpdate();
     }
@@ -569,6 +620,31 @@ export class JournalProcessor extends EventEmitter {
             case 'AsteroidCracked':
                 logMessage = '深部コア破砕';
                 break;
+            case 'MiningRefined': {
+                const mineral = entry.Type_Localised || entry.Type;
+                if (!mineral) break;
+
+                const eventTime = entry.timestamp ? new Date(entry.timestamp).getTime() : Date.now();
+                if (!this.#miningRefinedHistory.has(mineral)) {
+                    this.#miningRefinedHistory.set(mineral, []);
+                }
+                const history = this.#miningRefinedHistory.get(mineral);
+                history.push(eventTime);
+
+                const windowMs = this.#miningRushOptions.windowMs;
+                while (history.length > 0 && eventTime - history[0] > windowMs) {
+                    history.shift();
+                }
+
+                const lastTrigger = this.#miningRushLastTrigger.get(mineral) || 0;
+                const cooldownMs = this.#miningRushOptions.cooldownMs;
+
+                if (history.length >= this.#miningRushOptions.threshold && (eventTime - lastTrigger) >= cooldownMs) {
+                    this.#miningRushLastTrigger.set(mineral, eventTime);
+                    logMessage = `採掘ラッシュ: ${mineral}`;
+                }
+                break;
+            }
         }
 
         if (logMessage) {

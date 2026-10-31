@@ -637,6 +637,105 @@ describe('JournalProcessor', () => {
             crackedLogs.forEach(log => {
                 expect(log.startsWith('* ')).toBe(false);
             });
+
+            // コア破砕後の回収ラッシュ（Void Opal x3, Low Temp. Diamonds x1）も検知されること
+            const opalRushes = testProcessor.eventLog.filter(l => l.includes('採掘ラッシュ: Void Opal'));
+            const ltdRushes = testProcessor.eventLog.filter(l => l.includes('採掘ラッシュ: Low Temp. Diamonds'));
+            expect(opalRushes.length).toBe(3);
+            expect(ltdRushes.length).toBe(1);
+        });
+
+        it('should allow customizing mining rush options via constructor and setMiningRushOptions', () => {
+            const customProcessor = new JournalProcessor(getInitialState(), {
+                miningRush: { windowSec: 30, threshold: 3, cooldownSec: 60 }
+            });
+            expect(customProcessor.getMiningRushOptions()).toEqual({
+                windowMs: 30000,
+                threshold: 3,
+                cooldownMs: 60000
+            });
+
+            customProcessor.setMiningRushOptions({ windowMs: 45000, threshold: 4 });
+            expect(customProcessor.getMiningRushOptions()).toEqual({
+                windowMs: 45000,
+                threshold: 4,
+                cooldownMs: 60000
+            });
+        });
+
+        it('should detect mining rush for single mineral and respect cooldown and threshold', () => {
+            const testProcessor = new JournalProcessor(getInitialState(), {
+                miningRush: { windowSec: 60, threshold: 3, cooldownSec: 120 }
+            });
+            testProcessor.handleRecordingStarted(new Date('2026-10-24T10:00:00Z'));
+
+            // 異なる鉱物（水）が混ざっても対象鉱物のカウントに合算されないこと
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-24T10:00:10Z',
+                event: 'MiningRefined',
+                Type: '$water_name;',
+                Type_Localised: 'Water'
+            }));
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-24T10:00:15Z',
+                event: 'MiningRefined',
+                Type: '$painite_name;',
+                Type_Localised: 'Painite'
+            }));
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-24T10:00:20Z',
+                event: 'MiningRefined',
+                Type: '$painite_name;',
+                Type_Localised: 'Painite'
+            }));
+
+            // まだPainiteは2個なので発火しない
+            expect(testProcessor.eventLog.some(l => l.includes('採掘ラッシュ'))).toBe(false);
+
+            // 3個目で発火
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-24T10:00:25Z',
+                event: 'MiningRefined',
+                Type: '$painite_name;',
+                Type_Localised: 'Painite'
+            }));
+            expect(testProcessor.eventLog.some(l => l.includes('採掘ラッシュ: Painite'))).toBe(true);
+
+            // クールダウン（120秒）以内に追加されても連続発火しないこと
+            const beforeCount = testProcessor.eventLog.filter(l => l.includes('採掘ラッシュ: Painite')).length;
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-10-24T10:00:30Z',
+                event: 'MiningRefined',
+                Type: '$painite_name;',
+                Type_Localised: 'Painite'
+            }));
+            const afterCount = testProcessor.eventLog.filter(l => l.includes('採掘ラッシュ: Painite')).length;
+            expect(afterCount).toBe(beforeCount);
+        });
+
+        it('should correctly detect mining rushes from laser mining sample log file', () => {
+            const laserFixturePath = path.join(__dirname, '../fixtures/samples/mining/Journal.2026-10-24T162228.01.log');
+            const lines = fs.readFileSync(laserFixturePath, 'utf-8').split(/\r?\n/);
+
+            const testProcessor = new JournalProcessor(getInitialState());
+            testProcessor.handleRecordingStarted(new Date('2026-10-24T09:50:00Z'));
+
+            for (const line of lines) {
+                if (line.trim()) {
+                    testProcessor.processJournalLine(line);
+                }
+            }
+
+            const rushLogs = testProcessor.eventLog.filter(l => l.includes('採掘ラッシュ: Painite'));
+            // 3回のPainiteラッシュが検知されること
+            expect(rushLogs.length).toBe(3);
+            rushLogs.forEach(log => {
+                expect(log.startsWith('* ')).toBe(false);
+            });
+            // 散発的なBauxiteやGold、Osmiumではラッシュが発生していないこと
+            expect(testProcessor.eventLog.some(l => l.includes('Bauxite'))).toBe(false);
+            expect(testProcessor.eventLog.some(l => l.includes('Gold'))).toBe(false);
+            expect(testProcessor.eventLog.some(l => l.includes('Osmium'))).toBe(false);
         });
     });
 });
