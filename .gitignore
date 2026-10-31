@@ -51,4 +51,5 @@ credentials.*
 # Test #
 ########
 !tests/fixtures/*
+!tests/fixtures/**/*.log
 coverage/
