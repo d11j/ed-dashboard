@@ -540,7 +540,7 @@ export class JournalProcessor extends EventEmitter {
                 if (!target && entry.Body && entry.BodyType !== 'Null') {
                     target = entry.Body;
                 }
-                logMessage = target ? `ドロップ: ${target}` : '-- スーパークルーズ終了 --';
+                logMessage = target ? `-- ドロップ: ${target} --` : '-- スーパークルーズ終了 --';
                 this.#lastDestinationDropName = null;
                 break;
             }

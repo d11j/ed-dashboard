@@ -477,7 +477,7 @@ describe('JournalProcessor', () => {
             }));
 
             expect(testProcessor.isInSupercruise()).toBe(false);
-            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: Bunuson 1'))).toBe(true);
+            expect(testProcessor.eventLog.some(l => l.includes('-- ドロップ: Bunuson 1 --'))).toBe(true);
 
             // 2. SupercruiseDestinationDrop による Nav Beacon へのドロップ
             testProcessor.processJournalLine(JSON.stringify({
@@ -500,7 +500,7 @@ describe('JournalProcessor', () => {
             }));
 
             expect(testProcessor.isInSupercruise()).toBe(false);
-            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: Nav Beacon'))).toBe(true);
+            expect(testProcessor.eventLog.some(l => l.includes('-- ドロップ: Nav Beacon --'))).toBe(true);
 
             // 3. USSDrop によるUSSへのドロップ（種別を問わず一律 '離脱: USS'）
             testProcessor.processJournalLine(JSON.stringify({
@@ -523,7 +523,7 @@ describe('JournalProcessor', () => {
             }));
 
             expect(testProcessor.isInSupercruise()).toBe(false);
-            expect(testProcessor.eventLog.some(l => l.includes('ドロップ: USS'))).toBe(true);
+            expect(testProcessor.eventLog.some(l => l.includes('-- ドロップ: USS --'))).toBe(true);
 
             // 4. ドロップ先情報がなく BodyType が Null の場合
             testProcessor.processJournalLine(JSON.stringify({
