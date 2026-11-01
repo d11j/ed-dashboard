@@ -11,14 +11,21 @@
   - 他のすべてのモジュールの初期化と連携。
   - クライアントとのWebSocket接続の管理。
   - OBS WebSocketサーバーとの通信のハンドリング。
-  - `JournalProcessor`から発行されるイベント（`update`, `logUpdate`など）をリッスンし、整形済みデータをクライアントにブロードキャストする。
+  - `JournalProcessor`から発行されるイベント（`update`, `logUpdate`, `combatKillDeath`など）をリッスンし、整形済みデータをクライアントにブロードキャストする。
+  - `ObsReplayManager`を介してリプレイバッファの状態制御や設定の同期を行う。
   - `lowdb` を使用したデータの永続化（読み書き）管理。
 - `src/journalProcessor.js`: アプリケーションのコアロジックモジュールとなる。クラスとして実装されており、ジャーナル処理に関連するすべてのロジックをカプセル化している。責務を以下に示す。
   - `chokidar` を用いたElite: Dangerousのジャーナルディレクトリのファイル変更監視および `stopMonitoring()` によるクリーンアップ処理の提供。
   - ジャーナルエントリと Status.json をパースし、アプリケーションの状態を更新。
   - 進行中の旅客ミッション（救出ミッションを含む）をID単位で追跡し、乗船中人数や輸送完了数、救出中フラグを管理。
   - 内部的な状態フラグ（例：戦闘状態、着陸シーケンス）の管理。
-  - `EventEmitter`を継承し、状態変更があった際に`update`や`logUpdate`といったイベントを発行（emit）して外部に通知する。
+  - `EventEmitter`を継承し、状態変更があった際に`update`や`logUpdate`、キルデスイベント時の`combatKillDeath`といったイベントを発行（emit）して外部に通知する。
+- `src/obsReplayManager.js`: OBSリプレイバッファ連動の管理モジュール。責務を以下に示す。
+  - OBS WebSocketを介したリプレイバッファの開始・停止・切り替え・手動保存の制御。
+  - キルデスイベント（Bounty, FactionKillBond, PVPKill, Died）受信時の遅延トリガ（デフォルト3秒）のスケジューリング。
+  - 連続撃破時のマルチキル延長制御（タイマーリセットによる1本化）。
+  - クリップ保存履歴（直近10件）およびカウントダウンを含む状態の保持と通知。
+  - `EventEmitter`を継承し、状態変化時に`stateChange`イベントを発行。
 - `src/constants.js`: アプリケーション全体で利用される定数をエクスポートするモジュールとなる。これには以下が含まれる。
   - PORT などのサーバー設定。
   - パイロットのランク定義（FED_RANKS, COMBAT_RANKS など）といった静的なゲームデータ。
@@ -125,6 +132,56 @@ end
 @enduml
 ```
 
+### OBSリプレイバッファ連動シーケンス
+
+敵船撃墜や自身の被撃墜イベントを検知し、OBSのリプレイバッファを保存するまでの流れを以下のシーケンス図に示す。
+
+> **リプレイバッファの仕様上の注意:**  
+> - **クリップ全体の長さ（最大リプレイ時間）**: OBSの設定画面で設定された時間（例: 60秒）が適用されます。
+> - **トリガ遅延（Trigger Delay / Post-Roll）**: ダッシュボード側の設定（デフォルト3秒）。撃破の瞬間から爆散エフェクト・COVAS音声終了までの余韻を保存するための遅延時間です。
+
+```plantuml
+@startuml
+!theme plain
+title OBSリプレイバッファ連動シーケンス
+
+participant "クライアント (ブラウザ)" as Client
+participant "server.js" as Server
+participant "JournalProcessor.js" as Processor
+participant "ObsReplayManager.js" as ReplayMgr
+participant "OBS WebSocket" as OBS
+
+Processor -> Processor: #processJournalLine(line)
+note over Processor: Bounty, FactionKillBond,\nPVPKill, Died を検知
+Processor ->> Server: emit('combatKillDeath', { event, entry })
+Server -> ReplayMgr: onCombatKillDeath(data)
+activate ReplayMgr
+
+alt リプレイバッファがアクティブ かつ 自動保存が有効
+    alt すでに保存タイマー作動中 かつ マルチキル延長有効
+        ReplayMgr -> ReplayMgr: 既存タイマーをキャンセルし、\n最新撃破からN秒後に再スケジュール
+    else 新規トリガ
+        ReplayMgr -> ReplayMgr: N秒後 (デフォルト3秒) の保存タイマーを開始
+    end
+    ReplayMgr ->> Server: emit('stateChange', state)
+    Server -> Client: broadcast(obs_replay_state)
+    note right of Client: UIに "Saving in Ns..." の\nカウントダウンを表示
+
+    ... N秒経過 (タイマー満了) ...
+    ReplayMgr -> OBS: call('SaveReplayBuffer')
+    deactivate ReplayMgr
+
+    OBS ->> ReplayMgr: on('ReplayBufferSaved', { savedReplayPath })
+    activate ReplayMgr
+    ReplayMgr -> ReplayMgr: 直近クリップ履歴 (recentClips) に追加
+    ReplayMgr ->> Server: emit('stateChange', state)
+    deactivate ReplayMgr
+    Server -> Client: broadcast(obs_replay_state)
+    note right of Client: Recent Clips に保存ファイル名を表示
+end
+@enduml
+```
+
 ### レイアウト変更シーケンス
 
 あるクライアントでカードの並び順変更が行われた場合のシーケンス図を示す。
@@ -195,6 +252,7 @@ deactivate Server
 | full_update | 最新の統計情報をすべて送信する。クライアントの初回接続時や状態リセット後に送信される。| `{ "bounty": { "count": 10, ... }, ... }` |
 | log_update | 更新されたイベントログの配列を送信する。| `["[00:00:00] -- 録画開始 --"]`|
 | obs_recording_state | OBSの録画ステータスの変更をクライアントに通知する。 | `{ "isRecording": true, "isPaused": false }`| 
+| obs_replay_state | OBSリプレイバッファの状態（稼働状況、カウントダウン、クリップ履歴、設定）を通知する。 | `{ "isActive": true, "isSaving": false, "config": { ... }, "recentClips": [ ... ] }` |
 | history_update | 過去のセッション履歴を送信する。 | `[{ "date": "2023-10-27", "profit": 100000, ... }]` |
 | layout_apply | レイアウトの更新を通知する。 | `{'columns': {'left-column': ['rank-progression', ...], 'right-column': ['combat', ...]}, 'collapsed': {'toggle-progress': true}}` |
 
@@ -212,6 +270,11 @@ deactivate Server
 | pause_obs_recording | サーバーにOBSの録画一時停止を要求する。 | `null` |
 | resume_obs_recording | サーバーにOBSの録画再開を要求する。 | `null` |
 | toggle_pause_obs_recording | サーバーにOBSの録画一時停止の切り替えを要求する。 | `null` |
+| start_obs_replay_buffer | サーバーにOBSリプレイバッファの開始を要求する。 | `null` |
+| stop_obs_replay_buffer | サーバーにOBSリプレイバッファの停止を要求する。 | `null` |
+| toggle_obs_replay_buffer | サーバーにOBSリプレイバッファの開始/停止切り替えを要求する。 | `null` |
+| save_obs_replay_buffer | サーバーにOBSリプレイバッファの即時保存（手動クリップ）を要求する。 | `null` |
+| update_obs_replay_config | OBSリプレイバッファの設定変更をサーバーに通知し、保存を要求する。 | `{ "enabled": true, "delaySeconds": 3, "multiKillExtend": true }` |
 | layout_update | レイアウトの変更をサーバに通知する。 | `{'columns': {'left-column': ['rank-progression', ...], 'right-column': ['combat', ...]}, 'collapsed': {'toggle-progress': true}}` |
 
 ## 5. 永続化と可視化 (Persistence & Visualization)
@@ -231,6 +294,9 @@ deactivate Server
       * 過去のセッション統計（日付、総利益、撃墜数、探索スキャン数など）。
       * アプリケーション終了時（`SIGINT`等）や日付変更時に、現在のセッション統計をコミットする。
       * 次回起動時に「前回セッションとの比較（例: 前日比）」を表示するために使用する。
+3.  **リプレイバッファ設定 (`replayConfig`)**:
+      * 自動保存有効フラグ (`enabled`)、撃破からトリガまでの遅延秒数 (`delaySeconds`)、マルチキル延長フラグ (`multiKillExtend`)。
+      * クライアントからの `update_obs_replay_config` 受信時に即時永続化し、サーバー起動時に復元される。
 
 #### セッション復元 (Session Resume) の仕様
 
@@ -277,7 +343,8 @@ UIの視認性を損なわず、数値の傾向を把握可能にするため、
 本システムは、品質維持とデグレード防止のため、Vitest を用いた自動テストを実行可能な構造になっている。
 
 - **単体テスト (Unit Tests)**:
-  - `tests/unit/journalProcessor.test.js`: ジャーナルイベント監視のモックを作成し、各種ジャーナル（戦闘、交易、探索、マテリアル、進行状況）のパース結果が正しく状態 `state` に集約されるか検証。旅客ミッションの搭乗・輸送状況や、難民救出ミッションによる救出フラグ (`isRescueMissionActive`) の切り替えもカバー。
+  - `tests/unit/journalProcessor.test.js`: ジャーナルイベント監視のモックを作成し、各種ジャーナル（戦闘、交易、探索、マテリアル、進行状況）のパース結果が正しく状態 `state` に集約されるか検証。旅客ミッションの搭乗・輸送状況や、難民救出ミッションによる救出フラグ (`isRescueMissionActive`) の切り替え、およびキルデスイベント時の `combatKillDeath` 発行動作をカバー。
+  - `tests/unit/obsReplayManager.test.js`: OBSリプレイバッファ管理クラスの単体テスト。初期状態、撃破イベント受信時の3秒遅延トリガ、マルチキル時のタイマー延長、手動保存（即時トリガ）、無効化制御、およびOBSイベント（`ReplayBufferSaved` 等）との連動を検証。
   - `tests/unit/utils.test.js`: 経過時間フォーマット、初期状態生成ロジックの動作検証。
 - **結合テスト (Integration Tests)**:
-  - `tests/integration/server.test.js`: `supertest` および WebSocket クライアントを用いた結合テスト。WebSocket サーバーの起動、接続時の初期状態/履歴データの送信、クライアントからのリセット (`reset_stats`)・レイアウト変更 (`layout_update`)・セッション再開 (`resume_last_session`) の処理、および `db.json` への読み書き動作を検証。
+  - `tests/integration/server.test.js`: `supertest` および WebSocket クライアントを用いた結合テスト。WebSocket サーバーの起動、接続時の初期状態/履歴データ/リプレイバッファ状態の送信、クライアントからのリセット (`reset_stats`)・レイアウト変更 (`layout_update`)・セッション再開 (`resume_last_session`)・リプレイバッファ操作および設定変更 (`update_obs_replay_config`) の処理、および `db.json` への読み書き動作を検証。
