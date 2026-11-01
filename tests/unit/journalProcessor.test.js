@@ -738,6 +738,73 @@ describe('JournalProcessor', () => {
             expect(testProcessor.eventLog.some(l => l.includes('Osmium'))).toBe(false);
         });
     });
+
+    describe('Combat kill/death events for replay buffer', () => {
+        it('should emit combatKillDeath event for Bounty, FactionKillBond, PVPKill, Died when isInitialLoaded is true', () => {
+            const testProcessor = new JournalProcessor(getInitialState());
+            testProcessor.isInitialLoaded = true;
+
+            const emittedEvents = [];
+            testProcessor.on('combatKillDeath', (data) => {
+                emittedEvents.push(data);
+            });
+
+            // Bounty
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-11-01T12:00:00Z',
+                event: 'Bounty',
+                Target: 'anaconda',
+                TotalReward: 150000
+            }));
+
+            // FactionKillBond
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-11-01T12:01:00Z',
+                event: 'FactionKillBond',
+                Reward: 80000,
+                VictimFaction: 'Empire Party'
+            }));
+
+            // PVPKill
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-11-01T12:02:00Z',
+                event: 'PVPKill',
+                Victim: 'CMDR Rival',
+                CombatRank: 5
+            }));
+
+            // Died
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-11-01T12:03:00Z',
+                event: 'Died',
+                KillerName: 'CMDR Nemesis'
+            }));
+
+            expect(emittedEvents.length).toBe(4);
+            expect(emittedEvents[0].event).toBe('Bounty');
+            expect(emittedEvents[1].event).toBe('FactionKillBond');
+            expect(emittedEvents[2].event).toBe('PVPKill');
+            expect(emittedEvents[3].event).toBe('Died');
+        });
+
+        it('should NOT emit combatKillDeath when isInitialLoaded is false', () => {
+            const testProcessor = new JournalProcessor(getInitialState());
+            testProcessor.isInitialLoaded = false;
+
+            const emittedEvents = [];
+            testProcessor.on('combatKillDeath', (data) => {
+                emittedEvents.push(data);
+            });
+
+            testProcessor.processJournalLine(JSON.stringify({
+                timestamp: '2026-11-01T12:00:00Z',
+                event: 'Bounty',
+                Target: 'anaconda'
+            }));
+
+            expect(emittedEvents.length).toBe(0);
+        });
+    });
 });
 
 

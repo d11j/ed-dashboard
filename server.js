@@ -10,6 +10,7 @@ import { fileURLToPath } from 'url';
 import { WebSocketServer } from 'ws';
 import { MAX_OBS_RETRIES, PORT } from './src/constants.js';
 import JournalProcessor from './src/journalProcessor.js';
+import { ObsReplayManager } from './src/obsReplayManager.js';
 import { getInitialState } from './src/utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -19,10 +20,15 @@ const __dirname = path.dirname(__filename);
 const defaultData = {
     layout: {
         columns: {
-            'left-column': ['rank-progression', 'mission', 'event-log'],
+            'left-column': ['rank-progression', 'mission', 'event-log', 'obs-replay'],
             'right-column': ['combat', 'trading', 'exploration', 'material']
         },
         collapsed: {}
+    },
+    replayConfig: {
+        enabled: true,
+        delaySeconds: 3,
+        multiKillExtend: true
     },
     history: []
 };
@@ -36,6 +42,10 @@ if (!db.data.layout || !db.data.layout.columns) {
     db.data.layout = defaultData.layout;
 }
 db.data.history = db.data.history || [];
+db.data.replayConfig = { ...defaultData.replayConfig, ...db.data.replayConfig };
+
+// --- OBS Replay Manager の初期化 ---
+const obsReplayManager = new ObsReplayManager(db.data.replayConfig);
 
 // --- グローバル状態変数 ---
 let initialState = getInitialState(); // デフォルトの初期状態
@@ -111,6 +121,7 @@ wss.on('connection', (ws) => {
     ws.send(JSON.stringify({ type: 'log_update', payload: journalProcessor.eventLog })); // 接続時に現在のログを送信
     ws.send(JSON.stringify({ type: 'layout_apply', payload: db.data.layout })); // 接続時にDBから読み込んだ順序を送信
     ws.send(JSON.stringify({ type: 'obs_recording_state', payload: journalProcessor.getRecordingState() })); // 接続時に録画状態を送信
+    ws.send(JSON.stringify({ type: 'obs_replay_state', payload: obsReplayManager.getState() })); // 接続時にリプレイバッファ状態を送信
 
     ws.on('message', async (message) => {
         try {
@@ -129,6 +140,18 @@ wss.on('connection', (ws) => {
                 await obs.call('ResumeRecord');
             } else if (data.type === 'toggle_pause_obs_recording') {
                 await obs.call('ToggleRecordPause');
+            } else if (data.type === 'start_obs_replay_buffer') {
+                await obsReplayManager.startReplayBuffer();
+            } else if (data.type === 'stop_obs_replay_buffer') {
+                await obsReplayManager.stopReplayBuffer();
+            } else if (data.type === 'toggle_obs_replay_buffer') {
+                await obsReplayManager.toggleReplayBuffer();
+            } else if (data.type === 'save_obs_replay_buffer') {
+                await obsReplayManager.triggerManualSave();
+            } else if (data.type === 'update_obs_replay_config') {
+                obsReplayManager.updateConfig(data.payload);
+                db.data.replayConfig = { ...db.data.replayConfig, ...obsReplayManager.getState().config };
+                await db.write();
             } else if (data.type === 'layout_update') {
                 db.data.layout = data.payload;
                 await db.write(); // DBにレイアウトを保存
@@ -169,6 +192,13 @@ async function connectToOBSAtStartup() {
                 { eventSubscriptions: EventSubscription.Outputs }
             );
             console.log('OBS WebSocketに接続しました。');
+            obsReplayManager.setObs(obs);
+            try {
+                const replayStatus = await obs.call('GetReplayBufferStatus');
+                obsReplayManager.setActive(replayStatus.outputActive);
+            } catch {
+                // GetReplayBufferStatus失敗は無視
+            }
             try {
                 const { outputActive, outputPaused } = await obs.call('GetRecordStatus');
                 if (outputActive) {
@@ -206,6 +236,7 @@ async function connectToOBSAtStartup() {
 obs.on('ConnectionClosed', () => {
     // 接続が切れたことを通知するのみで、再接続は試みない
     console.error('OBS WebSocketとの接続が切れました。');
+    obsReplayManager.setActive(false);
 });
 
 obs.on('RecordStateChanged', (data) => {
@@ -360,8 +391,23 @@ async function persistSessionData() {
     }
 }
 
+// --- OBSリプレイバッファ連携の配線 ---
+journalProcessor.on('combatKillDeath', (data) => {
+    obsReplayManager.onCombatKillDeath(data);
+});
+
+obsReplayManager.on('stateChange', (state) => {
+    const payload = JSON.stringify({ type: 'obs_replay_state', payload: state });
+    wss.clients.forEach(client => {
+        if (client.readyState === client.OPEN) {
+            client.send(payload);
+        }
+    });
+});
+
 // --- サーバーシャットダウン処理 ---
 process.on('SIGINT', async () => {
+    obsReplayManager.destroy();
     console.log('サーバーシャットダウン処理を開始します (SIGINT)...');
 
     // すべてのWebSocketクライアント接続を強制的に切断
