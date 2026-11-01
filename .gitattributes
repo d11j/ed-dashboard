@@ -1,0 +1,12 @@
+* text=auto eol=lf
+tests/fixtures/**/*.log text eol=crlf
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
