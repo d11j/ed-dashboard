@@ -79,6 +79,8 @@ export class JournalProcessor extends EventEmitter {
             'ShipTargeted': this.#handleShipTargeted,
             'MaterialCollected': this.#handleMaterialCollected,
             'FactionKillBond': this.#handleFactionKillBond,
+            'PVPKill': this.#handlePVPKill,
+            'Died': this.#handleDied,
             'MissionAccepted': this.#handleMissionAccepted,
             'MissionCompleted': this.#handleMissionCompleted,
             'MissionFailed': this.#handleMissionAbandonedOrFailed,
@@ -249,6 +251,14 @@ export class JournalProcessor extends EventEmitter {
                 this.emit('update', this.state); // 初回スキャン完了後に一度だけブロードキャスト
             })
             .on('error', (error) => console.error(`ファイル監視エラー: ${error}`));
+    }
+
+    get isInitialLoaded() {
+        return this.#isInitialLoaded;
+    }
+
+    set isInitialLoaded(value) {
+        this.#isInitialLoaded = !!value;
     }
 
     /**
@@ -555,6 +565,11 @@ export class JournalProcessor extends EventEmitter {
                 // ハンドラが存在するイベントは状態を変更する可能性があるため、UI更新をリクエスト
                 this.#requestUpdate();
             }
+            if (['Bounty', 'FactionKillBond', 'PVPKill', 'Died'].includes(entry.event)) {
+                if (this.#isInitialLoaded) {
+                    this.emit('combatKillDeath', { event: entry.event, entry });
+                }
+            }
             this.#logEvent(entry);
         } catch (e) {
             console.error(e);
@@ -575,6 +590,18 @@ export class JournalProcessor extends EventEmitter {
         let logMessage = '';
 
         switch (entry.event) {
+            case 'FactionKillBond':
+                isMinorEvent = true;
+                logMessage = `撃破(CZ): ${entry.VictimFaction || 'Enemy'}`;
+                break;
+            case 'PVPKill':
+                logMessage = `撃破(PvP): ${entry.Victim || 'CMDR'}`;
+                break;
+            case 'Died': {
+                const killer = entry.KillerName || (entry.Killers && entry.Killers[0]?.KillerName) || 'Unknown';
+                logMessage = `被撃墜: by ${killer}`;
+                break;
+            }
             case 'Bounty':
                 isMinorEvent = true;
                 const enemyShip = entry.Target_Localised || entry.Target;
@@ -622,7 +649,9 @@ export class JournalProcessor extends EventEmitter {
                 break;
             case 'MiningRefined': {
                 const mineral = entry.Type_Localised || entry.Type;
-                if (!mineral) break;
+                if (!mineral) {
+                    break;
+                }
 
                 const eventTime = entry.timestamp ? new Date(entry.timestamp).getTime() : Date.now();
                 if (!this.#miningRefinedHistory.has(mineral)) {
@@ -935,6 +964,29 @@ export class JournalProcessor extends EventEmitter {
             this.state.materials.details[category] = {};
         }
         this.state.materials.details[category][Name_Localised || name] = (this.state.materials.details[category][Name_Localised || name] || 0) + count;
+    }
+
+    /**
+     * PVPKillイベントを処理する
+     * @param {object} entry
+     */
+    #handlePVPKill(entry) {
+        this.state.bounty.count++;
+        const victim = entry.Victim || 'CMDR';
+        this.state.bounty.targets[victim] = (this.state.bounty.targets[victim] || 0) + 1;
+        let rankName = 'Unknown';
+        if (typeof entry.CombatRank === 'number') {
+            rankName = COMBAT_RANKS[entry.CombatRank] || 'Unknown';
+        }
+        this.state.bounty.ranks[rankName] = (this.state.bounty.ranks[rankName] || 0) + 1;
+    }
+
+    /**
+     * Diedイベントを処理する
+     * @param {object} _entry
+     */
+    #handleDied(_entry) {
+        // 被撃墜イベントハンドラ
     }
 
     /**

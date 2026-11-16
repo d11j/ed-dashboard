@@ -112,6 +112,60 @@
                     </div>
                 </div>
             </div>
+            <!-- OBS Replay Buffer Card -->
+            <div class="card" data-id="obs-replay">
+                <div class="drag-handle"></div>
+                <div class="card-main-content">
+                    <div class="toggle-section">
+                        <input type="checkbox" id="toggle-obs-replay" class="toggle-checkbox" checked>
+                        <div class="card-header-container">
+                            <label for="toggle-obs-replay" class="toggle-label h2">OBS Replay Buffer</label>
+                            <span id="replay-buffer-badge" class="replay-badge badge-inactive">INACTIVE</span>
+                        </div>
+                        <div class="toggle-content">
+                            <!-- Status & Quick Actions -->
+                            <div class="replay-actions">
+                                <button id="replay-save-button" class="replay-button save-button">SAVE CLIP NOW</button>
+                                <button id="replay-toggle-button" class="replay-button toggle-button">START BUFFER</button>
+                            </div>
+                            <div id="replay-status-message" class="replay-status-message">Replay buffer is inactive</div>
+
+                            <!-- Settings Section -->
+                            <div class="toggle-section">
+                                <input type="checkbox" id="toggle-replay-settings" class="toggle-checkbox" checked>
+                                <label for="toggle-replay-settings" class="toggle-label h3">Settings</label>
+                                <div class="toggle-content">
+                                    <div class="replay-settings-grid">
+                                        <label class="setting-item">
+                                            <span>Auto-Save on Kill / Death</span>
+                                            <input type="checkbox" id="replay-setting-enabled" checked>
+                                        </label>
+                                        <label class="setting-item">
+                                            <span>Trigger Delay (Seconds)</span>
+                                            <input type="number" id="replay-setting-delay" min="0" max="60" value="3" class="setting-number-input">
+                                        </label>
+                                        <label class="setting-item">
+                                            <span>Multi-kill Extend Timer</span>
+                                            <input type="checkbox" id="replay-setting-extend" checked>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Recent Clips Section -->
+                            <div class="toggle-section">
+                                <input type="checkbox" id="toggle-replay-clips" class="toggle-checkbox" checked>
+                                <label for="toggle-replay-clips" class="toggle-label h3">Recent Clips</label>
+                                <div class="toggle-content">
+                                    <div id="replay-clips-list" class="replay-clips-list">
+                                        <div class="no-clips">No clips saved yet in this session</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
 
         <!-- Right Column -->

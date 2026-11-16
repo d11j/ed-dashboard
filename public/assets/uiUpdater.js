@@ -573,5 +573,92 @@ function applyCardOrder(layout) {
     }
 }
 
-export { applyCardOrder, setStatusUI, updateLogUI, updateRecordingStatusUI, updateUI };
+/**
+ * OBSリプレイバッファの状態と設定をUIに反映する
+ * @param {object} state
+ */
+function updateReplayStatusUI(state) {
+    if (!state) {
+        return;
+    }
+
+    const badge = document.getElementById('replay-buffer-badge');
+    const saveButton = document.getElementById('replay-save-button');
+    const toggleButton = document.getElementById('replay-toggle-button');
+    const statusMsg = document.getElementById('replay-status-message');
+    const settingEnabled = document.getElementById('replay-setting-enabled');
+    const settingDelay = document.getElementById('replay-setting-delay');
+    const settingExtend = document.getElementById('replay-setting-extend');
+    const clipsList = document.getElementById('replay-clips-list');
+
+    const { isActive, isSaving, remainingSeconds, pendingReason, config, recentClips } = state;
+
+    // バッジ & ボタンの更新
+    if (badge) {
+        badge.classList.remove('badge-active', 'badge-inactive', 'badge-saving');
+        if (isSaving) {
+            badge.classList.add('badge-saving');
+            badge.textContent = 'SAVING...';
+        } else if (isActive) {
+            badge.classList.add('badge-active');
+            badge.textContent = 'ACTIVE';
+        } else {
+            badge.classList.add('badge-inactive');
+            badge.textContent = 'INACTIVE';
+        }
+    }
+
+    if (toggleButton) {
+        toggleButton.classList.toggle('active', !!isActive);
+        toggleButton.textContent = isActive ? 'STOP BUFFER' : 'START BUFFER';
+    }
+
+    if (saveButton) {
+        saveButton.disabled = !isActive;
+    }
+
+    // ステータスメッセージ
+    if (statusMsg) {
+        if (isSaving) {
+            statusMsg.classList.add('saving');
+            statusMsg.textContent = `🎬 Saving in ${remainingSeconds || 1}s... (${pendingReason || 'Combat'})`;
+        } else {
+            statusMsg.classList.remove('saving');
+            statusMsg.textContent = isActive ? 'Replay buffer is active (ready to clip)' : 'Replay buffer is inactive';
+        }
+    }
+
+    // 設定値の同期 (フォーカス中でない場合のみ反映)
+    if (config) {
+        if (settingEnabled && document.activeElement !== settingEnabled) {
+            settingEnabled.checked = !!config.enabled;
+        }
+        if (settingDelay && document.activeElement !== settingDelay) {
+            settingDelay.value = config.delaySeconds;
+        }
+        if (settingExtend && document.activeElement !== settingExtend) {
+            settingExtend.checked = !!config.multiKillExtend;
+        }
+    }
+
+    // クリップ履歴一覧
+    if (clipsList && Array.isArray(recentClips)) {
+        if (recentClips.length === 0) {
+            clipsList.innerHTML = '<div class="no-clips">No clips saved yet in this session</div>';
+        } else {
+            clipsList.innerHTML = recentClips.map(clip => {
+                const timeStr = clip.timestamp ? new Date(clip.timestamp).toLocaleTimeString() : '';
+                return `<div class="clip-item">
+                    <div class="clip-info">
+                        <span class="clip-filename" title="${clip.path || clip.filename}">${clip.filename}</span>
+                        <span class="clip-reason">${clip.reason || ''}</span>
+                    </div>
+                    <span class="clip-time">${timeStr}</span>
+                </div>`;
+            }).join('');
+        }
+    }
+}
+
+export { applyCardOrder, setStatusUI, updateLogUI, updateRecordingStatusUI, updateReplayStatusUI, updateUI };
 

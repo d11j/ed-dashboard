@@ -396,5 +396,37 @@ describe('Server Integration', () => {
 
         client.close();
     });
+
+    it('should send initial obs_replay_state and handle replay buffer messages', async () => {
+        const client = new WebSocket(`ws://localhost:${allocatedPort}`);
+        let replayState = null;
+
+        client.on('message', (data) => {
+            const parsed = JSON.parse(data.toString());
+            if (parsed.type === 'obs_replay_state') {
+                replayState = parsed.payload;
+            }
+        });
+
+        await new Promise((resolve) => client.on('open', resolve));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // 初期状態で obs_replay_state を受信していること
+        expect(replayState).not.toBeNull();
+        expect(replayState.config.delaySeconds).toBe(3);
+        expect(replayState.config.multiKillExtend).toBe(true);
+
+        // 設定更新メッセージの送信
+        client.send(JSON.stringify({
+            type: 'update_obs_replay_config',
+            payload: { delaySeconds: 5 }
+        }));
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        // DBへの保存が呼ばれたこと
+        expect(mockLowWrite).toHaveBeenCalled();
+
+        client.close();
+    });
 });
 

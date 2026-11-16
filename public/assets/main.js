@@ -1,4 +1,4 @@
-import { applyCardOrder, setStatusUI, updateLogUI, updateRecordingStatusUI, updateUI } from './uiUpdater.js';
+import { applyCardOrder, setStatusUI, updateLogUI, updateRecordingStatusUI, updateReplayStatusUI, updateUI } from './uiUpdater.js';
 import { connect, sendMessage } from './websocketClient.js';
 
 let isRecording = false;
@@ -47,6 +47,10 @@ document.addEventListener('ws:layout_apply', (event) => {
     applyCardOrder(event.detail);
 });
 
+document.addEventListener('ws:obs_replay_state', (event) => {
+    updateReplayStatusUI(event.detail);
+});
+
 
 // --- DOM Event Listeners ---
 resetButton.addEventListener('click', () => {
@@ -89,6 +93,49 @@ copyLogButton.addEventListener('click', () => {
             .catch(err => console.error('コピーに失敗しました:', err));
     }
 });
+
+// --- OBS Replay Buffer Event Listeners ---
+const replaySaveButton = document.getElementById('replay-save-button');
+const replayToggleButton = document.getElementById('replay-toggle-button');
+const replaySettingEnabled = document.getElementById('replay-setting-enabled');
+const replaySettingDelay = document.getElementById('replay-setting-delay');
+const replaySettingExtend = document.getElementById('replay-setting-extend');
+
+if (replaySaveButton) {
+    replaySaveButton.addEventListener('click', () => {
+        sendMessage('save_obs_replay_buffer');
+        console.log('リプレイバッファ保存要求を送信しました。');
+    });
+}
+
+if (replayToggleButton) {
+    replayToggleButton.addEventListener('click', () => {
+        sendMessage('toggle_obs_replay_buffer');
+        console.log('リプレイバッファ開始/停止切り替え要求を送信しました。');
+    });
+}
+
+const sendReplayConfigUpdate = () => {
+    const enabled = replaySettingEnabled ? replaySettingEnabled.checked : true;
+    const delaySeconds = replaySettingDelay ? parseFloat(replaySettingDelay.value) || 3 : 3;
+    const multiKillExtend = replaySettingExtend ? replaySettingExtend.checked : true;
+    sendMessage('update_obs_replay_config', {
+        enabled,
+        delaySeconds,
+        multiKillExtend
+    });
+    console.log('リプレイ設定更新を送信しました:', { enabled, delaySeconds, multiKillExtend });
+};
+
+if (replaySettingEnabled) {
+    replaySettingEnabled.addEventListener('change', sendReplayConfigUpdate);
+}
+if (replaySettingDelay) {
+    replaySettingDelay.addEventListener('change', sendReplayConfigUpdate);
+}
+if (replaySettingExtend) {
+    replaySettingExtend.addEventListener('change', sendReplayConfigUpdate);
+}
 
 // --- SortableJS Initialization ---
 document.addEventListener('DOMContentLoaded', () => {
